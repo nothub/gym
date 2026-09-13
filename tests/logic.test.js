@@ -11,8 +11,14 @@ const ROOT = new URL("../", import.meta.url);
 const src = Deno.readTextFileSync(new URL("index.html", ROOT));
 const code = src.match(/<script>([\s\S]*?)<\/script>/)[1];
 
-// Slider order, mirroring CUE_MODES in the app.
-const CUE_MODES = ["sound", "both", "vibrate", "off"];
+// Two independent checkboxes, so the four cue modes are their combinations.
+// Named here purely to keep the test bodies readable.
+const CUE_STATES = {
+    both: { sound: true, buzz: true },
+    sound: { sound: true, buzz: false },
+    vibrate: { sound: false, buzz: true },
+    off: { sound: false, buzz: false },
+};
 const STEP = 16; // ~60fps, matching requestAnimationFrame
 
 /**
@@ -83,32 +89,11 @@ async function run({
     for (
         const id of [
             "setup", "rounds", "timer", "phase", "seconds", "round-label",
-            "pause", "reset", "live", "cues", "cue-scale",
+            "pause", "reset", "live", "cues", "cue-sound", "cue-buzz",
         ]
     ) {
         els[id] = makeEl(id);
     }
-
-    // The label above each slider stop. The app highlights one and removes the
-    // ones this device cannot offer, so both have to be modelled.
-    let cueSpans = CUE_MODES.map((mode) => {
-        const span = { dataset: { mode }, on: false };
-        span.classList = {
-            toggle(name, force) {
-                if (name === "on") span.on = force;
-            },
-        };
-        span.remove = () => {
-            cueSpans = cueSpans.filter((s) => s !== span);
-        };
-        return span;
-    });
-
-    els["cue-scale"].querySelectorAll = (sel) => {
-        const wanted = [...sel.matchAll(/data-mode="([^"]+)"/g)].map((m) => m[1]);
-        return cueSpans.filter((s) => wanted.includes(s.dataset.mode));
-    };
-    Object.defineProperty(els["cue-scale"], "children", { get: () => cueSpans });
 
     const bodyClasses = new Set();
     const docHandlers = {};
@@ -210,10 +195,9 @@ async function run({
     const initialRounds = els.rounds.value;
 
     if (pick) {
-        // Drag the slider to the stop that names this mode, as a user would.
-        const modes = vibrate ? CUE_MODES : CUE_MODES.filter((m) => m === "sound" || m === "off");
-        els.cues.value = String(modes.indexOf(pick));
-        els.cues.fire("input");
+        els["cue-sound"].checked = CUE_STATES[pick].sound;
+        els["cue-buzz"].checked = CUE_STATES[pick].buzz;
+        els.cues.fire("change");
     }
 
     els.rounds.valueAsNumber = rounds;
@@ -238,12 +222,8 @@ async function run({
         await Promise.resolve();
     };
 
-    const litLabel = () => cueSpans.find((s) => s.on)?.dataset.mode ?? null;
-    const labels = () => cueSpans.map((s) => s.dataset.mode);
-
     return {
-        els, initialRounds, beeps, buzzes, urls, flashes, store, wakeLog,
-        setVisibility, litLabel, labels,
+        els, initialRounds, beeps, buzzes, urls, flashes, store, wakeLog, setVisibility,
     };
 }
 
@@ -304,38 +284,31 @@ Deno.test("sound and buzz modes are independent", async () => {
     ok(buzz.buzzes.length > 0);
 });
 
-Deno.test("the slider offers four labelled stops when the device can buzz", async () => {
-    const { els, labels, litLabel } = await run({ rounds: 1 });
-    strictEqual(els.cues.max, "3");
-    deepStrictEqual(labels(), ["sound", "both", "vibrate", "off"]);
-    strictEqual(litLabel(), "both");
+Deno.test("both cues are on by default", async () => {
+    const { els } = await run({ rounds: 1 });
+    strictEqual(els["cue-sound"].checked, true);
+    strictEqual(els["cue-buzz"].checked, true);
+    strictEqual(els["cue-buzz"].disabled, false);
 });
 
-Deno.test("without a Vibration API the slider shortens and a stored mode degrades", async () => {
-    const { els, labels, litLabel, buzzes, beeps } = await run({
+Deno.test("without a Vibration API the buzz box is off and disabled", async () => {
+    const { els, buzzes, beeps } = await run({
         rounds: 1,
         vibrate: false,
-        stored: { cues: "both" },
+        stored: { sound: true, buzz: true },
     });
-    // Sound and Silent only: two dead stops are worse than a shorter slider.
-    strictEqual(els.cues.max, "1");
-    deepStrictEqual(labels(), ["sound", "off"]);
-    // "both" would be silent on a device that cannot buzz, so it falls back.
-    strictEqual(litLabel(), "sound");
+    strictEqual(els["cue-buzz"].disabled, true);
+    // Left ticked it would read as working, which it would not be.
+    strictEqual(els["cue-buzz"].checked, false);
     deepStrictEqual(buzzes, []);
     ok(beeps.length > 0);
 });
 
-Deno.test("exactly one label is lit, and the slider names it for a screen reader", async () => {
-    for (const [mode, label] of Object.entries({
-        sound: "Sound",
-        both: "Sound + buzz",
-        vibrate: "Buzz",
-        off: "Silent",
-    })) {
-        const { els, litLabel } = await run({ rounds: 1, pick: mode });
-        strictEqual(litLabel(), mode);
-        strictEqual(els.cues.getAttribute("aria-valuetext"), label);
+Deno.test("each checkbox is restored from storage independently", async () => {
+    for (const [mode, want] of Object.entries(CUE_STATES)) {
+        const { els } = await run({ rounds: 1, stored: want });
+        strictEqual(els["cue-sound"].checked, want.sound, `${mode} sound`);
+        strictEqual(els["cue-buzz"].checked, want.buzz, `${mode} buzz`);
     }
 });
 
@@ -358,10 +331,10 @@ Deno.test("unusable round counts in the url are ignored", async () => {
     strictEqual(garbage.initialRounds, "10");
 });
 
-Deno.test("writes the round count to the url and the cue mode to storage", async () => {
+Deno.test("writes the round count to the url and the cue choices to storage", async () => {
     const { urls, store } = await run({ rounds: 4, pick: "sound" });
     strictEqual(urls[0], "?rounds=10");
-    deepStrictEqual(JSON.parse(store.get("emom")), { cues: "sound", rounds: 4 });
+    deepStrictEqual(JSON.parse(store.get("emom")), { sound: true, buzz: false, rounds: 4 });
 });
 
 Deno.test("holds the screen awake for the workout and releases it at the end", async () => {

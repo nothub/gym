@@ -121,47 +121,33 @@ button[type="submit"] {
 
 /* Cue settings */
 
-/* Each label sits over the stop it names. A range thumb travels from
-   half-a-thumb in to half-a-thumb short of the end, so the outer two align to
-   the track's edges and only the inner ones are centred on their positions. */
-#cue-scale {
-  position: relative;
-  height: 1.2em;
-  font-size: var(--text-sm);
-  color: var(--dim);
+fieldset {
+  display: flex;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-#cue-scale span {
-  position: absolute;
-  white-space: nowrap;
-  transform: translateX(-50%);
-}
-
-#cue-scale span:nth-child(2) { left: 34%; }
-#cue-scale span:nth-child(3) { left: 66%; }
-
-/* After the nth-child rules on purpose. With only two stops the last label is
-   also nth-child(2), and these must win -- left:auto cancels the 34%, which
-   would otherwise combine with right:0 to stretch the box across the track. */
-#cue-scale span:first-child {
-  left: 0;
-  right: auto;
-  transform: none;
-}
-
-#cue-scale span:last-child {
-  left: auto;
-  right: 0;
-  transform: none;
-}
-
-#cue-scale span.on { color: var(--txt); }
-
-input[type="range"] {
-  width: 100%;
-  margin: var(--space-1) 0 0;
-  accent-color: var(--acc);
+fieldset label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+  color: var(--txt);
   cursor: pointer;
+}
+
+fieldset label:has(input:disabled) {
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--acc);
+  cursor: inherit;
 }
 
 /* Timer */
@@ -265,16 +251,11 @@ noscript p {
       <input id="rounds" name="rounds" type="number" inputmode="numeric"
              min="1" max="99" step="1" value="10" required>
     </div>
-    <div>
-      <div id="cue-scale" aria-hidden="true">
-        <span data-mode="sound">Sound</span>
-        <span data-mode="both">Sound + buzz</span>
-        <span data-mode="vibrate">Buzz</span>
-        <span data-mode="off">Silent</span>
-      </div>
-      <input id="cues" type="range" min="0" max="3" step="1" value="1"
-             aria-label="Cues" aria-valuetext="Sound + buzz">
-    </div>
+    <fieldset id="cues">
+      <legend class="sr-only">Cues</legend>
+      <label><input id="cue-sound" type="checkbox" checked> Sound</label>
+      <label><input id="cue-buzz" type="checkbox" checked> Buzz</label>
+    </fieldset>
 
     <button type="submit">Start</button>
   </form>
@@ -315,7 +296,8 @@ const el = {
   reset: document.getElementById("reset"),
   live: document.getElementById("live"),
   cues: document.getElementById("cues"),
-  cueScale: document.getElementById("cue-scale"),
+  cueSound: document.getElementById("cue-sound"),
+  cueBuzz: document.getElementById("cue-buzz"),
 };
 
 /* ---------- preferences ---------- */
@@ -329,34 +311,10 @@ const MAX_ROUNDS = 99;
 // The case this actually catches is iOS Safari, which has never shipped it.
 const canVibrate = typeof navigator.vibrate === "function";
 
-// Slider order, left to right: progressively less audio.
-const CUE_MODES = ["sound", "both", "vibrate", "off"];
-const CUE_LABELS = {
-  sound: "Sound",
-  both: "Sound + buzz",
-  vibrate: "Buzz",
-  off: "Silent",
-};
-
-// A range cannot disable individual stops, so without a Vibration API the
-// slider gets shorter rather than offering two settings that do nothing.
-const cueModes = CUE_MODES.filter((m) => canVibrate || (m !== "both" && m !== "vibrate"));
-
-let cueMode = "both";
-
-const wantSound = () => cueMode === "both" || cueMode === "sound";
-const wantBuzz = () => canVibrate && (cueMode === "both" || cueMode === "vibrate");
+// The checkboxes are the state; there is nothing to mirror them into.
+const wantSound = () => el.cueSound.checked;
+const wantBuzz = () => canVibrate && el.cueBuzz.checked;
 const validRounds = (v) => Number.isInteger(v) && v >= 1 && v <= MAX_ROUNDS;
-
-function applyCueMode(mode) {
-  cueMode = mode;
-  // The scale is aria-hidden, so the slider carries the name itself. Without
-  // this it would announce a bare number, which says nothing.
-  el.cues.setAttribute("aria-valuetext", CUE_LABELS[mode]);
-  for (const span of el.cueScale.children) {
-    span.classList.toggle("on", span.dataset.mode === mode);
-  }
-}
 
 function loadPrefs() {
   // localStorage throws rather than returning null when storage is blocked.
@@ -624,9 +582,8 @@ el.rounds.addEventListener("input", () => {
   if (validRounds(n)) pushUrl(n);
 });
 
-el.cues.addEventListener("input", () => {
-  applyCueMode(cueModes[el.cues.valueAsNumber]);
-  savePrefs({ cues: cueMode });
+el.cues.addEventListener("change", () => {
+  savePrefs({ sound: el.cueSound.checked, buzz: el.cueBuzz.checked });
   if (wantSound()) initAudio();
 });
 
@@ -636,18 +593,9 @@ el.reset.addEventListener("click", toSetup);
 function init() {
   const prefs = loadPrefs();
 
-  // Drop the labels for stops this device does not have, so :first-child and
-  // :last-child land on the two that remain.
-  for (const span of [...el.cueScale.children]) {
-    if (!cueModes.includes(span.dataset.mode)) span.remove();
-  }
-
-  // max before value: the browser clamps value to whatever max currently is.
-  el.cues.max = String(cueModes.length - 1);
-  const fallback = cueModes.includes("both") ? "both" : "sound";
-  const mode = cueModes.includes(prefs.cues) ? prefs.cues : fallback;
-  el.cues.value = String(cueModes.indexOf(mode));
-  applyCueMode(mode);
+  el.cueSound.checked = prefs.sound ?? true;
+  el.cueBuzz.checked = canVibrate && (prefs.buzz ?? true);
+  el.cueBuzz.disabled = !canVibrate;
 
   // URL beats stored preference: a bookmarked ?rounds=12 is an explicit ask.
   const fromUrl = Number(new URLSearchParams(location.search).get("rounds"));
