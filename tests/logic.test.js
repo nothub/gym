@@ -78,7 +78,7 @@ async function run({
     for (
         const id of [
             "setup", "rounds", "timer", "phase", "seconds", "round-label",
-            "pause", "reset", "live", "cue-settings", "vibe-note",
+            "pause", "reset", "live", "cue-settings",
         ]
     ) {
         els[id] = makeEl(id);
@@ -269,13 +269,12 @@ Deno.test("sound and buzz modes are independent", async () => {
 });
 
 Deno.test("without a Vibration API the buzz options disable and a stored mode degrades", async () => {
-    const { radios, els, buzzes, beeps } = await run({
+    const { radios, buzzes, beeps } = await run({
         rounds: 1,
         vibrate: false,
         stored: { cues: "both" },
     });
     deepStrictEqual(radios.filter((r) => r.disabled).map((r) => r.value), ["both", "vibrate"]);
-    strictEqual(els["vibe-note"].hidden, false);
     // "both" would be silent on a device that cannot buzz, so it falls back to sound.
     strictEqual(radios.find((r) => r.checked).value, "sound");
     deepStrictEqual(buzzes, []);

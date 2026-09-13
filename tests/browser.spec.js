@@ -162,7 +162,6 @@ test("disables the buzz options when the browser has no Vibration API", async ({
 
     await expect(page.locator('input[value="vibrate"]')).toBeDisabled();
     await expect(page.locator('input[value="both"]')).toBeDisabled();
-    await expect(page.locator("#vibe-note")).toBeVisible();
     // "both" on a device that cannot buzz would be silent, so it degrades.
     await expect(page.locator('input[value="sound"]')).toBeChecked();
 });

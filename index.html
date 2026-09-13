@@ -152,13 +152,6 @@ fieldset label:has(input:disabled) {
 
 input[type="radio"] { accent-color: var(--acc); }
 
-#vibe-note {
-  grid-column: 1 / -1;
-  margin: 0;
-  font-size: var(--text-sm);
-  color: var(--dim);
-}
-
 /* Timer */
 
 /* Two regions: the clock takes all the height the controls do not, so the big
@@ -266,7 +259,6 @@ noscript p {
       <label><input type="radio" name="cue" value="sound"> Sound</label>
       <label><input type="radio" name="cue" value="vibrate"> Buzz</label>
       <label><input type="radio" name="cue" value="off"> Silent</label>
-      <p id="vibe-note" hidden>This browser has no Vibration API, so buzz is unavailable. The screen still flashes.</p>
     </fieldset>
 
     <button type="submit">Start</button>
@@ -308,7 +300,6 @@ const el = {
   reset: document.getElementById("reset"),
   live: document.getElementById("live"),
   cueSettings: document.getElementById("cue-settings"),
-  vibeNote: document.getElementById("vibe-note"),
 };
 
 /* ---------- preferences ---------- */
@@ -611,7 +602,6 @@ function init() {
     for (const input of el.cueSettings.querySelectorAll('input[value="both"], input[value="vibrate"]')) {
       input.disabled = true;
     }
-    el.vibeNote.hidden = false;
   }
 
   let mode = prefs.cues || "both";
