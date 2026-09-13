@@ -20,7 +20,7 @@ cd "$(dirname "$(readlink -f "$0")")/.."
 readonly IMAGE="emom-test"
 
 echo "==> logic tests" >&2
-deno test --allow-read test/logic.test.js
+deno test --allow-read tests/logic.test.js
 
 echo "==> browser tests" >&2
 if ! docker info > /dev/null 2>&1; then
@@ -28,7 +28,7 @@ if ! docker info > /dev/null 2>&1; then
     exit 1
 fi
 
-docker build --quiet --tag "${IMAGE}" --file test/Dockerfile test/ > /dev/null
+docker build --quiet --tag "${IMAGE}" --file tests/Dockerfile tests/ > /dev/null
 
 # --ipc=host keeps Chromium from exhausting the default 64 MB /dev/shm.
 # --init reaps the processes Chromium leaves behind.
@@ -38,4 +38,4 @@ docker run --rm \
     --init \
     --volume "${PWD}:/work/app:ro" \
     "${IMAGE}" \
-    npx playwright test --config test/playwright.config.js
+    npx playwright test --config tests/playwright.config.js

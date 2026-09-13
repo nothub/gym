@@ -13,7 +13,7 @@ FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble
 ARG PLAYWRIGHT_VERSION
 
 # node_modules deliberately sits one level above the mount point. Node resolves
-# it by walking up from /work/app/test, so nothing is ever written into the
+# it by walking up from /work/app/tests, so nothing is ever written into the
 # repository and it can be mounted read-only.
 WORKDIR /work
 RUN npm install --no-audit --no-fund "@playwright/test@${PLAYWRIGHT_VERSION}"
