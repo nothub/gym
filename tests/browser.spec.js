@@ -21,21 +21,32 @@ test("centres the setup form instead of sizing it to its contents", async ({ pag
     expect(form.width).toBeLessThanOrEqual(320);
 });
 
-test("centres the countdown in the space above the controls", async ({ page }) => {
+test("stacks round count, countdown, phase, then controls", async ({ page }) => {
     await page.goto("/");
     await start(page);
 
-    const clock = await page.locator("#clock").boundingBox();
-    const phase = await page.locator("#phase").boundingBox();
-    const label = await page.locator("#round-label").boundingBox();
+    const tops = [];
+    for (const id of ["round-label", "seconds", "phase", "controls"]) {
+        tops.push((await page.locator(`#${id}`).boundingBox()).y);
+    }
 
-    // Measure the ink, not the flex region: the region is centred by
-    // construction, its contents are what drifted when #round-label carried a
-    // bottom margin that nothing above it balanced.
-    const contentCentre = (phase.y + label.y + label.height) / 2;
-    const regionCentre = clock.y + clock.height / 2;
+    for (let i = 1; i < tops.length; i++) {
+        expect(tops[i]).toBeGreaterThan(tops[i - 1]);
+    }
+});
 
-    expect(Math.abs(contentCentre - regionCentre)).toBeLessThan(4);
+test("centres the timer group in the viewport", async ({ page }) => {
+    await page.goto("/");
+    await start(page);
+
+    const top = await page.locator("#round-label").boundingBox();
+    const bottom = await page.locator("#controls").boundingBox();
+
+    // Measure the ink, not the flex container, which is centred by construction.
+    const groupCentre = (top.y + bottom.y + bottom.height) / 2;
+    const viewportCentre = page.viewportSize().height / 2;
+
+    expect(Math.abs(groupCentre - viewportCentre)).toBeLessThan(6);
 });
 
 test("centres the digits horizontally", async ({ page }) => {
