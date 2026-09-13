@@ -71,13 +71,13 @@ test("links to the repository and the build without navigating away", async ({ p
 
     await expect(repo).toHaveAttribute("href", "https://github.com/nothub/gym");
 
-    // Stamped by scripts/build.sh on the way into dist/. Asserting the shape
-    // rather than a fixed value tests the substitution itself: an unstamped
-    // build would still read "dev" here and fail.
+    // Filled in at runtime from version.js, which the build stamps. Asserting
+    // the shape rather than a fixed value tests that path end to end: an
+    // unstamped build leaves the "dev" fallback in place and fails here.
     const href = await build.getAttribute("href");
-    const sha = href.match(/\/commit\/([0-9a-f]{40})$/)?.[1];
+    const sha = href.match(/\/commit\/([0-9a-f]{7,40})$/)?.[1];
     expect(sha, `build link href was ${href}`).toBeTruthy();
-    await expect(build).toHaveText(sha.slice(0, 7));
+    await expect(build).toHaveText(sha);
 
     for (const link of [repo, build]) {
         // Opening in place would lose a running workout in a standalone install.
@@ -173,6 +173,10 @@ test("serves the app from cache with the network cut", async ({ page, context })
 
     await expect(page.locator("h1")).toHaveText("EMOM");
     await expect(page.locator("#rounds")).toBeVisible();
+
+    // version.js is precached for this: without it in ASSETS the footer would
+    // fall back to "dev" the moment the network went away.
+    await expect(page.locator("#build")).not.toHaveText("dev");
 
     // The timer must still be usable, not merely painted.
     await start(page);

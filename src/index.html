@@ -283,9 +283,9 @@ noscript p {
 <footer>
   <!-- _blank so a standalone install hands these to the browser rather than
        navigating the timer away mid-workout.
-       The build link is rewritten at deploy time by scripts/inject-build.sh;
-       un-stamped it reads "dev" and points at the commit list, which is the
-       honest answer for a copy that was never deployed. -->
+       The build link is filled in from version.js at runtime. What is written
+       here is the fallback: "dev" pointing at the commit list is the honest
+       answer for a copy that was never built. -->
   <a href="https://github.com/nothub/gym" target="_blank" rel="noopener noreferrer">nothub/gym</a>
   <span aria-hidden="true">·</span>
   <a id="build" href="https://github.com/nothub/gym/commits/trunk" target="_blank" rel="noopener noreferrer">dev</a>
@@ -296,6 +296,10 @@ noscript p {
 <noscript>
   <p>This timer needs JavaScript. There is no way to count seconds without it.</p>
 </noscript>
+
+<!-- Sets self.BUILD. The service worker imports this same file, so the footer
+     and the worker's cache name cannot disagree about which build is running. -->
+<script src="version.js"></script>
 
 <script>
 "use strict";
@@ -316,6 +320,7 @@ const el = {
   cues: document.getElementById("cues"),
   cueSound: document.getElementById("cue-sound"),
   cueBuzz: document.getElementById("cue-buzz"),
+  build: document.getElementById("build"),
 };
 
 /* ---------- preferences ---------- */
@@ -607,6 +612,13 @@ function init() {
   el.cueSound.checked = prefs.sound ?? true;
   el.cueBuzz.checked = canVibrate && (prefs.buzz ?? true);
   el.cueBuzz.disabled = !canVibrate;
+
+  // Left as the markup's fallback when version.js is missing or unstamped.
+  // GitHub resolves abbreviated hashes, so the short id is enough to link to.
+  if (self.BUILD && self.BUILD !== "dev") {
+    el.build.textContent = self.BUILD;
+    el.build.href = `https://github.com/nothub/gym/commit/${self.BUILD}`;
+  }
 
   el.rounds.value = String(validRounds(prefs.rounds) ? prefs.rounds : 10);
 }

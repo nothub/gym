@@ -32,6 +32,7 @@ async function run({
     pick = null,
     rounds = 3,
     stopAt = null,
+    build = "dev",
 } = {}) {
     let now = 0;
     const beeps = [];
@@ -88,7 +89,7 @@ async function run({
     for (
         const id of [
             "setup", "rounds", "timer", "phase", "seconds", "round-label",
-            "pause", "reset", "live", "cues", "cue-sound", "cue-buzz",
+            "pause", "reset", "live", "cues", "cue-sound", "cue-buzz", "build",
         ]
     ) {
         els[id] = makeEl(id);
@@ -162,6 +163,9 @@ async function run({
     }
 
     const sandbox = {
+        // version.js assigns onto self; in a page that is window. The worker
+        // imports the same file, which is what keeps the two in step.
+        self: { BUILD: build },
         document,
         window: {
             AudioContext: FakeAudioContext,
@@ -279,6 +283,20 @@ Deno.test("sound and buzz modes are independent", async () => {
     const buzz = await run({ rounds: 2, pick: "vibrate" });
     deepStrictEqual(buzz.beeps, []);
     ok(buzz.buzzes.length > 0);
+});
+
+Deno.test("shows the build id in the footer when there is one", async () => {
+    const { els } = await run({ rounds: 1, build: "4094c69" });
+    strictEqual(els.build.textContent, "4094c69");
+    strictEqual(els.build.href, "https://github.com/nothub/gym/commit/4094c69");
+});
+
+Deno.test("leaves the footer fallback alone for an unbuilt copy", async () => {
+    // The markup already says "dev" pointing at the commit list; overwriting it
+    // with the literal placeholder would be worse than leaving it.
+    const { els } = await run({ rounds: 1, build: "dev" });
+    strictEqual(els.build.textContent, "");
+    strictEqual(els.build.href, undefined);
 });
 
 Deno.test("both cues are on by default", async () => {

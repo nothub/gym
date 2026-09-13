@@ -15,6 +15,9 @@ const ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
+  // The page loads this too, for the footer. Precached so an offline load
+  // still gets a build id rather than falling back to the "dev" placeholder.
+  "./version.js",
   "./icon-192.png",
   "./icon-512.png",
 ];
