@@ -47,7 +47,7 @@ jobs:
       # rather than publishing a page that still claims to be a dev build.
       - run: ./scripts/inject-build.sh "${GITHUB_SHA}"
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       # The whole repo, matching what deploy-from-branch served. .git and
       # .github are excluded by the action regardless.
