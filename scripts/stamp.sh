@@ -12,7 +12,8 @@ set -o pipefail
 #
 # Run before deploying. Safe to run repeatedly.
 
-cd "$(dirname "$(readlink -f "$0")")"
+# Project root, one level up from scripts/. Every path below is relative to it.
+cd "$(dirname "$(readlink -f "$0")")/.."
 
 readonly SW="sw.js"
 

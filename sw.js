@@ -1,7 +1,7 @@
 // Offline shell for the EMOM timer.
 //
-// CACHE is stamped by ./stamp.sh from a hash of the assets below -- do not edit
-// it by hand. Run stamp.sh before deploying; the activate handler then drops
+// CACHE is stamped by ./scripts/stamp.sh from a hash of the assets below -- do
+// not edit it by hand. Run it before deploying; the activate handler then drops
 // whatever the previous hash was.
 
 const CACHE = "emom-c97e2cefce52";
