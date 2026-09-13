@@ -35,18 +35,21 @@ test("stacks round count, countdown, phase, then controls", async ({ page }) => 
     }
 });
 
-test("centres the timer group in the viewport", async ({ page }) => {
+test("centres the timer group in the space it is given", async ({ page }) => {
     await page.goto("/");
     await start(page);
 
     const top = await page.locator("#round-label").boundingBox();
     const bottom = await page.locator("#controls").boundingBox();
+    // Against main, not the viewport: the footer takes height off the bottom,
+    // so viewport centre and main's centre are not the same point.
+    const main = await page.locator("main").boundingBox();
 
     // Measure the ink, not the flex container, which is centred by construction.
     const groupCentre = (top.y + bottom.y + bottom.height) / 2;
-    const viewportCentre = page.viewportSize().height / 2;
+    const mainCentre = main.y + main.height / 2;
 
-    expect(Math.abs(groupCentre - viewportCentre)).toBeLessThan(6);
+    expect(Math.abs(groupCentre - mainCentre)).toBeLessThan(6);
 });
 
 test("centres the digits horizontally", async ({ page }) => {
@@ -58,6 +61,16 @@ test("centres the digits horizontally", async ({ page }) => {
 
     // Tolerance is for glyph side bearings, which no amount of CSS removes.
     expect(Math.abs(seconds.x + seconds.width / 2 - width / 2)).toBeLessThan(width * 0.03);
+});
+
+test("links to the repository without navigating the timer away", async ({ page }) => {
+    await page.goto("/");
+
+    const link = page.locator("footer a");
+    await expect(link).toHaveAttribute("href", "https://github.com/nothub/gym");
+    // Opening in place would lose a running workout in a standalone install.
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", /noopener/);
 });
 
 test("never scrolls horizontally", async ({ page }) => {
