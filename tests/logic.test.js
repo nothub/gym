@@ -261,7 +261,7 @@ Deno.test("ends on an ascending fanfare and settles the screen", async () => {
         beeps.filter((b) => [523, 659, 784].includes(b.freq)).map((b) => b.freq),
         [523, 659, 784],
     );
-    strictEqual(els.seconds.textContent, "✓");
+    strictEqual(els.seconds.textContent, "💪");
     strictEqual(els["round-label"].textContent, "3 rounds");
     strictEqual(els.pause.hidden, true);
     strictEqual(els.reset.textContent, "Again");

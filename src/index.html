@@ -182,7 +182,14 @@ input[type="checkbox"] {
 }
 
 #seconds.warn { color: var(--acc); }
-#seconds.done { color: var(--ok); }
+
+/* The 0.9 line height above is tuned to digits. An emoji glyph is taller than
+   that box, so without a correction here the arm overlaps the line below.
+   The colour only shows if the platform substitutes a monochrome glyph. */
+#seconds.done {
+  color: var(--ok);
+  line-height: 1.25;
+}
 
 #round-label {
   margin: 0;
@@ -482,7 +489,7 @@ let lastPhase = null;
 function render(state, secs) {
   if (state.phase === "done") {
     el.phase.textContent = "Done";
-    el.seconds.textContent = "✓";
+    el.seconds.textContent = "💪";
     el.seconds.className = "done";
     el.roundLabel.textContent = `${clock.total} rounds`;
   } else {

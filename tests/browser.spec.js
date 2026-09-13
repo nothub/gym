@@ -126,6 +126,17 @@ test("runs a whole workout on a real requestAnimationFrame loop", async ({ page 
     await expect(page.locator("#phase")).toHaveText("Done");
     await expect(page.locator("#round-label")).toHaveText("1 rounds");
     await expect(page.locator("#pause")).toBeHidden();
+
+    // The finish glyph is an emoji, which draws taller than the em square the
+    // 0.9 line height gives the digits, and spills over the line below.
+    // Bounding boxes cannot see that -- the box is line-height by definition
+    // and the ink escapes it -- so this asserts the line box is tall enough to
+    // contain a glyph rather than that two boxes fail to intersect.
+    const ratio = await page.locator("#seconds").evaluate((node) => {
+        const style = getComputedStyle(node);
+        return parseFloat(style.lineHeight) / parseFloat(style.fontSize);
+    });
+    expect(ratio).toBeGreaterThan(1.1);
 });
 
 test("counts a real minute down to the flash at the boundary", async ({ page }) => {
