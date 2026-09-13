@@ -8,7 +8,8 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = fileURLToPath(new URL("../", import.meta.url));
+// The build output, not the source: the tests assert on what ships.
+const ROOT = fileURLToPath(new URL("../dist/", import.meta.url));
 const PORT = Number(process.env.PORT ?? 8080);
 
 const TYPES = {

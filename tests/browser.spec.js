@@ -71,10 +71,13 @@ test("links to the repository and the build without navigating away", async ({ p
 
     await expect(repo).toHaveAttribute("href", "https://github.com/nothub/gym");
 
-    // Source is un-stamped by construction: scripts/inject-build.sh rewrites
-    // these at deploy time, after the commit this would be testing exists.
-    await expect(build).toHaveText("dev");
-    await expect(build).toHaveAttribute("href", /\/commits\/trunk$/);
+    // Stamped by scripts/build.sh on the way into dist/. Asserting the shape
+    // rather than a fixed value tests the substitution itself: an unstamped
+    // build would still read "dev" here and fail.
+    const href = await build.getAttribute("href");
+    const sha = href.match(/\/commit\/([0-9a-f]{40})$/)?.[1];
+    expect(sha, `build link href was ${href}`).toBeTruthy();
+    await expect(build).toHaveText(sha.slice(0, 7));
 
     for (const link of [repo, build]) {
         // Opening in place would lose a running workout in a standalone install.

@@ -19,6 +19,11 @@ cd "$(dirname "$(readlink -f "$0")")/.."
 
 readonly IMAGE="emom-test"
 
+# Both tiers run against dist/, not src/, so what is asserted is what ships --
+# including the stamped build id, which only exists after a build.
+echo "==> build" >&2
+./scripts/build.sh
+
 echo "==> logic tests" >&2
 deno test --allow-read tests/logic.test.js
 

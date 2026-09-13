@@ -7,7 +7,8 @@
 
 import { deepStrictEqual, strictEqual, ok } from "node:assert";
 
-const ROOT = new URL("../", import.meta.url);
+// The build output, not the source: the tests assert on what ships.
+const ROOT = new URL("../dist/", import.meta.url);
 const src = Deno.readTextFileSync(new URL("index.html", ROOT));
 const code = src.match(/<script>([\s\S]*?)<\/script>/)[1];
 
