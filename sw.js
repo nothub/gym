@@ -34,7 +34,9 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
 
-  // ignoreSearch so a bookmarked ?rounds=12 still hits the cached shell.
+  // The app generates no query strings of its own, but a shared link can pick
+  // one up (?utm_source=...). ignoreSearch keeps those hitting the cached
+  // shell instead of failing offline.
   const hit = caches.match(e.request, { ignoreSearch: true });
 
   const fresh = fetch(e.request)

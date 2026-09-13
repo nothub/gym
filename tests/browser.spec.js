@@ -165,27 +165,31 @@ test("serves the app from cache with the network cut", async ({ page, context })
     await context.setOffline(false);
 });
 
-test("keeps a bookmarked round count working offline", async ({ page, context }) => {
+test("survives a tracking query string offline", async ({ page, context }) => {
     await page.goto("/");
     await page.evaluate(() => navigator.serviceWorker.ready);
 
     await context.setOffline(true);
+    // The app makes no query strings, but a shared link can arrive with one.
     // ignoreSearch in the fetch handler is what makes this resolve; without it
-    // the query string misses the cached entry and the page fails to load.
-    await page.goto("/?rounds=12");
+    // the query misses the cached entry and the page fails to load.
+    await page.goto("/?utm_source=somewhere");
 
-    await expect(page.locator("#rounds")).toHaveValue("12");
+    await expect(page.locator("h1")).toHaveText("EMOM");
     await context.setOffline(false);
 });
 
-test("round count round-trips through the url", async ({ page }) => {
+test("round count persists without touching the url", async ({ page }) => {
     await page.goto("/");
+    const url = page.url();
 
     await page.locator("#rounds").fill("12");
-    await expect(page).toHaveURL(/\?rounds=12$/);
+    // Typing used to rewrite the address bar. All state lives in one place now.
+    expect(page.url()).toBe(url);
 
-    await page.goto("/?rounds=7");
-    await expect(page.locator("#rounds")).toHaveValue("7");
+    await page.reload();
+    await expect(page.locator("#rounds")).toHaveValue("12");
+    expect(page.url()).toBe(url);
 });
 
 test("cue checkboxes toggle independently and survive a reload", async ({ page }) => {

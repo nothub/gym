@@ -319,8 +319,9 @@ const el = {
 };
 
 /* ---------- preferences ---------- */
-// Split follows kbgen: session shape (how long today) in the URL so a specific
-// workout is bookmarkable, durable preference in localStorage.
+// Everything the app remembers lives in one localStorage entry. An earlier
+// split kept the round count in the URL so a workout was bookmarkable, which
+// bought a second place to look when a setting misbehaved.
 
 const STORE_KEY = "emom";
 const MAX_ROUNDS = 99;
@@ -346,14 +347,6 @@ function loadPrefs() {
 function savePrefs(patch) {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({ ...loadPrefs(), ...patch }));
-  } catch (_) {}
-}
-
-function pushUrl(rounds) {
-  try {
-    const p = new URLSearchParams(location.search);
-    p.set("rounds", String(rounds));
-    history.replaceState(null, "", "?" + p.toString());
   } catch (_) {}
 }
 
@@ -588,16 +581,16 @@ el.setup.addEventListener("submit", (e) => {
   e.preventDefault();
   const n = Math.floor(el.rounds.valueAsNumber);
   if (!validRounds(n)) return;
-  savePrefs({ rounds: n });
   // Unlock audio on the gesture the autoplay policy wants. The first beep is
   // 7 s away, by which point there is no gesture left to hang it on.
   if (wantSound()) initAudio();
   start(n);
 });
 
+// Saved as typed, matching the checkboxes, so nothing depends on pressing Start.
 el.rounds.addEventListener("input", () => {
   const n = Math.floor(el.rounds.valueAsNumber);
-  if (validRounds(n)) pushUrl(n);
+  if (validRounds(n)) savePrefs({ rounds: n });
 });
 
 el.cues.addEventListener("change", () => {
@@ -615,13 +608,7 @@ function init() {
   el.cueBuzz.checked = canVibrate && (prefs.buzz ?? true);
   el.cueBuzz.disabled = !canVibrate;
 
-  // URL beats stored preference: a bookmarked ?rounds=12 is an explicit ask.
-  const fromUrl = Number(new URLSearchParams(location.search).get("rounds"));
-  const rounds = validRounds(fromUrl) ? fromUrl
-    : validRounds(prefs.rounds) ? prefs.rounds
-    : 10;
-  el.rounds.value = String(rounds);
-  pushUrl(rounds);
+  el.rounds.value = String(validRounds(prefs.rounds) ? prefs.rounds : 10);
 }
 
 init();

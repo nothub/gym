@@ -27,7 +27,6 @@ const STEP = 16; // ~60fps, matching requestAnimationFrame
  */
 async function run({
     vibrate = true,
-    search = "",
     stored = null,
     pick = null,
     rounds = 3,
@@ -36,7 +35,6 @@ async function run({
     let now = 0;
     const beeps = [];
     const buzzes = [];
-    const urls = [];
     const frames = [];
     const timeouts = [];
     const flashes = [];
@@ -175,9 +173,6 @@ async function run({
             getItem: (k) => (store.has(k) ? store.get(k) : null),
             setItem: (k, v) => store.set(k, v),
         },
-        location: { search },
-        history: { replaceState: (_state, _title, url) => urls.push(url) },
-        URLSearchParams,
         requestAnimationFrame: (fn) => frames.push(fn),
         cancelAnimationFrame: () => {
             frames.length = 0;
@@ -201,6 +196,7 @@ async function run({
     }
 
     els.rounds.valueAsNumber = rounds;
+    els.rounds.fire("input"); // typing is what persists the round count
     els.setup.fire("submit");
     await Promise.resolve(); // let the wake-lock request settle
 
@@ -223,7 +219,7 @@ async function run({
     };
 
     return {
-        els, initialRounds, beeps, buzzes, urls, flashes, store, wakeLog, setVisibility,
+        els, initialRounds, beeps, buzzes, flashes, store, wakeLog, setVisibility,
     };
 }
 
@@ -312,10 +308,7 @@ Deno.test("each checkbox is restored from storage independently", async () => {
     }
 });
 
-Deno.test("round count: url beats storage beats default", async () => {
-    const url = await run({ search: "?rounds=7", stored: { rounds: 22 }, rounds: 1 });
-    strictEqual(url.initialRounds, "7");
-
+Deno.test("round count is restored from storage, or falls back to ten", async () => {
     const storage = await run({ stored: { rounds: 22 }, rounds: 1 });
     strictEqual(storage.initialRounds, "22");
 
@@ -323,17 +316,15 @@ Deno.test("round count: url beats storage beats default", async () => {
     strictEqual(fallback.initialRounds, "10");
 });
 
-Deno.test("unusable round counts in the url are ignored", async () => {
-    const tooBig = await run({ search: "?rounds=500", stored: { rounds: 22 }, rounds: 1 });
-    strictEqual(tooBig.initialRounds, "22");
-
-    const garbage = await run({ search: "?rounds=abc", rounds: 1 });
-    strictEqual(garbage.initialRounds, "10");
+Deno.test("unusable stored round counts are ignored", async () => {
+    for (const bad of [500, 0, -3, 1.5, "abc", null]) {
+        const { initialRounds } = await run({ stored: { rounds: bad }, rounds: 1 });
+        strictEqual(initialRounds, "10", `rounds: ${JSON.stringify(bad)}`);
+    }
 });
 
-Deno.test("writes the round count to the url and the cue choices to storage", async () => {
-    const { urls, store } = await run({ rounds: 4, pick: "sound" });
-    strictEqual(urls[0], "?rounds=10");
+Deno.test("round count and cue choices share one storage entry", async () => {
+    const { store } = await run({ rounds: 4, pick: "sound" });
     deepStrictEqual(JSON.parse(store.get("emom")), { sound: true, buzz: false, rounds: 4 });
 });
 
