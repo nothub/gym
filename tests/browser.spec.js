@@ -21,6 +21,20 @@ test("centres the setup form instead of sizing it to its contents", async ({ pag
     expect(form.width).toBeLessThanOrEqual(320);
 });
 
+test("centres the cue checkboxes across the form", async ({ page }) => {
+    await page.goto("/");
+
+    const form = await page.locator("#setup").boundingBox();
+    const labels = page.locator("#cues label");
+    const first = await labels.first().boundingBox();
+    const last = await labels.last().boundingBox();
+
+    // The fieldset stretches to the form's width, so this measures where its
+    // contents sit inside it rather than where the box is.
+    const contentCentre = (first.x + last.x + last.width) / 2;
+    expect(Math.abs(contentCentre - (form.x + form.width / 2))).toBeLessThan(2);
+});
+
 test("stacks round count, countdown, phase, then controls", async ({ page }) => {
     await page.goto("/");
     await start(page);
