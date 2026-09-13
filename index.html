@@ -20,13 +20,14 @@
   --text-lg: 1.5rem;
   --text-huge: clamp(5rem, 42vmin, 20rem);
 
-  /* Palette carried over from kbgen. --dim is #888 rather than kbgen's #666:
-     #666 on #0f0f0f is 3.3:1, under the 4.5:1 needed for small text. */
+  /* Palette carried over from kbgen. --dim is as dark as it can go: #7c on
+     #0f0f0f is 4.6:1, and the 14px labels that use it need 4.5:1. kbgen's
+     own #666 is 3.3:1, which is why this is not simply its value. */
   --bg: #0f0f0f;
   --srf: #1a1a1a;
   --brd: #2c2c2c;
   --txt: #efefef;
-  --dim: #888888;
+  --dim: #7c7c7c;
   --acc: #f97316;
   --ok: #4ade80;
 
