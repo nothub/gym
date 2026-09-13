@@ -154,16 +154,35 @@ test("round count round-trips through the url", async ({ page }) => {
     await expect(page.locator("#rounds")).toHaveValue("7");
 });
 
-test("disables the buzz options when the browser has no Vibration API", async ({ page }) => {
+test("the cue slider names its stops and remembers where it was left", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator("#cues")).toHaveAttribute("max", "3");
+    await expect(page.locator("#cue-label")).toHaveText("Sound + buzz");
+
+    // Drag to the far right with the keyboard, which is also the a11y path.
+    await page.locator("#cues").focus();
+    await page.keyboard.press("End");
+    await expect(page.locator("#cue-label")).toHaveText("Silent");
+    await expect(page.locator("#cues")).toHaveAttribute("aria-valuetext", "Silent");
+
+    await page.reload();
+    await expect(page.locator("#cue-label")).toHaveText("Silent");
+});
+
+test("shortens the cue slider when the browser has no Vibration API", async ({ page }) => {
     await page.addInitScript(() => {
         delete Object.getPrototypeOf(navigator).vibrate;
     });
     await page.goto("/");
 
-    await expect(page.locator('input[value="vibrate"]')).toBeDisabled();
-    await expect(page.locator('input[value="both"]')).toBeDisabled();
-    // "both" on a device that cannot buzz would be silent, so it degrades.
-    await expect(page.locator('input[value="sound"]')).toBeChecked();
+    // Sound and Silent only -- a range cannot grey out individual stops.
+    await expect(page.locator("#cues")).toHaveAttribute("max", "1");
+    await expect(page.locator("#cue-label")).toHaveText("Sound");
+
+    await page.locator("#cues").focus();
+    await page.keyboard.press("End");
+    await expect(page.locator("#cue-label")).toHaveText("Silent");
 });
 
 test("starting the timer does not throw", async ({ page }) => {

@@ -11,7 +11,8 @@ const ROOT = new URL("../", import.meta.url);
 const src = Deno.readTextFileSync(new URL("index.html", ROOT));
 const code = src.match(/<script>([\s\S]*?)<\/script>/)[1];
 
-const RADIO_VALUES = ["both", "sound", "vibrate", "off"];
+// Slider order, mirroring CUE_MODES in the app.
+const CUE_MODES = ["sound", "both", "vibrate", "off"];
 const STEP = 16; // ~60fps, matching requestAnimationFrame
 
 /**
@@ -35,21 +36,14 @@ async function run({
     const flashes = [];
     const wakeLog = [];
 
-    const radios = RADIO_VALUES.map((value) => ({
-        tagName: "INPUT",
-        name: "cue",
-        value,
-        checked: false,
-        disabled: false,
-    }));
-
     const makeEl = (id) => ({
         id,
         _cls: "",
+        _value: "",
+        _attrs: {},
         textContent: "",
-        value: "",
         hidden: false,
-        valueAsNumber: NaN,
+        max: "",
         _handlers: {},
         addEventListener(type, fn) {
             (this._handlers[type] ||= []).push(fn);
@@ -58,13 +52,24 @@ async function run({
             (this._handlers[type] || []).forEach((fn) => fn(ev));
         },
         focus() {},
-        // The app only ever queries with input[value="X"] selectors.
-        querySelectorAll(sel) {
-            const wanted = [...sel.matchAll(/value="([^"]+)"/g)].map((m) => m[1]);
-            return radios.filter((r) => wanted.includes(r.value));
+        setAttribute(name, v) {
+            this._attrs[name] = v;
         },
-        querySelector(sel) {
-            return this.querySelectorAll(sel)[0] || null;
+        getAttribute(name) {
+            return this._attrs[name] ?? null;
+        },
+        // value and valueAsNumber are two views of one field, as in the DOM.
+        get value() {
+            return this._value;
+        },
+        set value(v) {
+            this._value = String(v);
+        },
+        get valueAsNumber() {
+            return this._value === "" ? NaN : Number(this._value);
+        },
+        set valueAsNumber(n) {
+            this._value = String(n);
         },
         get className() {
             return this._cls;
@@ -78,7 +83,7 @@ async function run({
     for (
         const id of [
             "setup", "rounds", "timer", "phase", "seconds", "round-label",
-            "pause", "reset", "live", "cue-settings",
+            "pause", "reset", "live", "cues", "cue-label",
         ]
     ) {
         els[id] = makeEl(id);
@@ -179,11 +184,15 @@ async function run({
     const keys = Object.keys(sandbox);
     new Function(...keys, code)(...keys.map((k) => sandbox[k]));
 
+    // What init() put in the box, before the run below types over it.
+    // value and valueAsNumber are one field, exactly as in the DOM.
+    const initialRounds = els.rounds.value;
+
     if (pick) {
-        const radio = radios.find((r) => r.value === pick);
-        radios.forEach((r) => (r.checked = false));
-        radio.checked = true;
-        els["cue-settings"].fire("change", { target: radio });
+        // Drag the slider to the stop that names this mode, as a user would.
+        const modes = vibrate ? CUE_MODES : CUE_MODES.filter((m) => m === "sound" || m === "off");
+        els.cues.value = String(modes.indexOf(pick));
+        els.cues.fire("input");
     }
 
     els.rounds.valueAsNumber = rounds;
@@ -208,7 +217,7 @@ async function run({
         await Promise.resolve();
     };
 
-    return { els, radios, beeps, buzzes, urls, flashes, store, wakeLog, setVisibility };
+    return { els, initialRounds, beeps, buzzes, urls, flashes, store, wakeLog, setVisibility };
 }
 
 const freqs = (beeps, hz) => beeps.filter((b) => b.freq === hz);
@@ -268,36 +277,57 @@ Deno.test("sound and buzz modes are independent", async () => {
     ok(buzz.buzzes.length > 0);
 });
 
-Deno.test("without a Vibration API the buzz options disable and a stored mode degrades", async () => {
-    const { radios, buzzes, beeps } = await run({
+Deno.test("the slider offers four stops when the device can buzz", async () => {
+    const { els } = await run({ rounds: 1 });
+    strictEqual(els.cues.max, "3");
+    // Default sits on the middle-left stop.
+    strictEqual(els["cue-label"].textContent, "Sound + buzz");
+});
+
+Deno.test("without a Vibration API the slider shortens and a stored mode degrades", async () => {
+    const { els, buzzes, beeps } = await run({
         rounds: 1,
         vibrate: false,
         stored: { cues: "both" },
     });
-    deepStrictEqual(radios.filter((r) => r.disabled).map((r) => r.value), ["both", "vibrate"]);
-    // "both" would be silent on a device that cannot buzz, so it falls back to sound.
-    strictEqual(radios.find((r) => r.checked).value, "sound");
+    // Sound and Silent only: two dead stops are worse than a shorter slider.
+    strictEqual(els.cues.max, "1");
+    // "both" would be silent on a device that cannot buzz, so it falls back.
+    strictEqual(els["cue-label"].textContent, "Sound");
     deepStrictEqual(buzzes, []);
     ok(beeps.length > 0);
 });
 
+Deno.test("every slider stop names itself for a screen reader", async () => {
+    for (const [mode, label] of Object.entries({
+        sound: "Sound",
+        both: "Sound + buzz",
+        vibrate: "Buzz",
+        off: "Silent",
+    })) {
+        const { els } = await run({ rounds: 1, pick: mode });
+        strictEqual(els["cue-label"].textContent, label);
+        strictEqual(els.cues.getAttribute("aria-valuetext"), label);
+    }
+});
+
 Deno.test("round count: url beats storage beats default", async () => {
     const url = await run({ search: "?rounds=7", stored: { rounds: 22 }, rounds: 1 });
-    strictEqual(url.els.rounds.value, "7");
+    strictEqual(url.initialRounds, "7");
 
     const storage = await run({ stored: { rounds: 22 }, rounds: 1 });
-    strictEqual(storage.els.rounds.value, "22");
+    strictEqual(storage.initialRounds, "22");
 
     const fallback = await run({ rounds: 1 });
-    strictEqual(fallback.els.rounds.value, "10");
+    strictEqual(fallback.initialRounds, "10");
 });
 
 Deno.test("unusable round counts in the url are ignored", async () => {
     const tooBig = await run({ search: "?rounds=500", stored: { rounds: 22 }, rounds: 1 });
-    strictEqual(tooBig.els.rounds.value, "22");
+    strictEqual(tooBig.initialRounds, "22");
 
     const garbage = await run({ search: "?rounds=abc", rounds: 1 });
-    strictEqual(garbage.els.rounds.value, "10");
+    strictEqual(garbage.initialRounds, "10");
 });
 
 Deno.test("writes the round count to the url and the cue mode to storage", async () => {

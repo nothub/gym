@@ -121,36 +121,24 @@ button[type="submit"] {
 
 /* Cue settings */
 
-fieldset {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--brd);
-  border-radius: var(--radius);
-}
-
-legend {
-  padding: 0 var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--dim);
-}
-
-fieldset label {
+.field-head {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
+  align-items: baseline;
   gap: var(--space-2);
+}
+
+output {
+  font-size: var(--text-sm);
   color: var(--txt);
+}
+
+input[type="range"] {
+  width: 100%;
+  margin: var(--space-2) 0 0;
+  accent-color: var(--acc);
   cursor: pointer;
 }
-
-fieldset label:has(input:disabled) {
-  color: var(--dim);
-  cursor: not-allowed;
-}
-
-input[type="radio"] { accent-color: var(--acc); }
 
 /* Timer */
 
@@ -253,13 +241,14 @@ noscript p {
       <input id="rounds" name="rounds" type="number" inputmode="numeric"
              min="1" max="99" step="1" value="10" required>
     </div>
-    <fieldset id="cue-settings">
-      <legend>Cues</legend>
-      <label><input type="radio" name="cue" value="both" checked> Sound + buzz</label>
-      <label><input type="radio" name="cue" value="sound"> Sound</label>
-      <label><input type="radio" name="cue" value="vibrate"> Buzz</label>
-      <label><input type="radio" name="cue" value="off"> Silent</label>
-    </fieldset>
+    <div>
+      <div class="field-head">
+        <label for="cues">Cues</label>
+        <output id="cue-label" for="cues">Sound + buzz</output>
+      </div>
+      <input id="cues" type="range" min="0" max="3" step="1" value="1"
+             aria-valuetext="Sound + buzz">
+    </div>
 
     <button type="submit">Start</button>
   </form>
@@ -299,7 +288,8 @@ const el = {
   pause: document.getElementById("pause"),
   reset: document.getElementById("reset"),
   live: document.getElementById("live"),
-  cueSettings: document.getElementById("cue-settings"),
+  cues: document.getElementById("cues"),
+  cueLabel: document.getElementById("cue-label"),
 };
 
 /* ---------- preferences ---------- */
@@ -313,11 +303,31 @@ const MAX_ROUNDS = 99;
 // The case this actually catches is iOS Safari, which has never shipped it.
 const canVibrate = typeof navigator.vibrate === "function";
 
-let cueMode = "both"; // both | sound | vibrate | off
+// Slider order, left to right: progressively less audio.
+const CUE_MODES = ["sound", "both", "vibrate", "off"];
+const CUE_LABELS = {
+  sound: "Sound",
+  both: "Sound + buzz",
+  vibrate: "Buzz",
+  off: "Silent",
+};
+
+// A range cannot disable individual stops, so without a Vibration API the
+// slider gets shorter rather than offering two settings that do nothing.
+const cueModes = CUE_MODES.filter((m) => canVibrate || (m !== "both" && m !== "vibrate"));
+
+let cueMode = "both";
 
 const wantSound = () => cueMode === "both" || cueMode === "sound";
 const wantBuzz = () => canVibrate && (cueMode === "both" || cueMode === "vibrate");
 const validRounds = (v) => Number.isInteger(v) && v >= 1 && v <= MAX_ROUNDS;
+
+function applyCueMode(mode) {
+  cueMode = mode;
+  el.cueLabel.textContent = CUE_LABELS[mode];
+  // A slider announces its numeric value, which here means nothing.
+  el.cues.setAttribute("aria-valuetext", CUE_LABELS[mode]);
+}
 
 function loadPrefs() {
   // localStorage throws rather than returning null when storage is blocked.
@@ -585,9 +595,8 @@ el.rounds.addEventListener("input", () => {
   if (validRounds(n)) pushUrl(n);
 });
 
-el.cueSettings.addEventListener("change", (e) => {
-  if (e.target.name !== "cue") return;
-  cueMode = e.target.value;
+el.cues.addEventListener("input", () => {
+  applyCueMode(cueModes[el.cues.valueAsNumber]);
   savePrefs({ cues: cueMode });
   if (wantSound()) initAudio();
 });
@@ -598,16 +607,12 @@ el.reset.addEventListener("click", toSetup);
 function init() {
   const prefs = loadPrefs();
 
-  if (!canVibrate) {
-    for (const input of el.cueSettings.querySelectorAll('input[value="both"], input[value="vibrate"]')) {
-      input.disabled = true;
-    }
-  }
-
-  let mode = prefs.cues || "both";
-  if (!canVibrate && (mode === "both" || mode === "vibrate")) mode = "sound";
-  cueMode = mode;
-  el.cueSettings.querySelector(`input[value="${mode}"]`).checked = true;
+  // max before value: the browser clamps value to whatever max currently is.
+  el.cues.max = String(cueModes.length - 1);
+  const fallback = cueModes.includes("both") ? "both" : "sound";
+  const mode = cueModes.includes(prefs.cues) ? prefs.cues : fallback;
+  el.cues.value = String(cueModes.indexOf(mode));
+  applyCueMode(mode);
 
   // URL beats stored preference: a bookmarked ?rounds=12 is an explicit ask.
   const fromUrl = Number(new URLSearchParams(location.search).get("rounds"));

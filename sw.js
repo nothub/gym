@@ -4,7 +4,7 @@
 // not edit it by hand. Run it before deploying; the activate handler then drops
 // whatever the previous hash was.
 
-const CACHE = "emom-143e15872e99";
+const CACHE = "emom-a99fea20468c";
 const ASSETS = [
   "./",
   "./index.html",
