@@ -39,13 +39,24 @@ body {
   margin: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   color: var(--txt);
   font-family: system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Full width rather than shrink-to-fit, so percentage widths inside it have a
+   definite containing block to resolve against. */
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--space-4);
 }
 
 h1 {
@@ -60,9 +71,11 @@ h1 {
 /* Setup */
 
 #setup {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
-  width: min(20rem, 100%);
+  width: 100%;
+  max-width: 20rem;
 }
 
 label {
@@ -148,11 +161,25 @@ input[type="radio"] { accent-color: var(--acc); }
 
 /* Timer */
 
+/* Two regions: the clock takes all the height the controls do not, so the big
+   number is centred on its own rather than being one item in a block whose
+   lower half outweighs its upper half. */
 #timer {
-  display: grid;
-  gap: var(--space-2);
-  justify-items: center;
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+}
+
+#clock {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
 }
 
 #phase {
@@ -175,7 +202,7 @@ input[type="radio"] { accent-color: var(--acc); }
 #seconds.done { color: var(--ok); }
 
 #round-label {
-  margin: 0 0 var(--space-6);
+  margin: 0;
   font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
   color: var(--dim);
@@ -184,6 +211,7 @@ input[type="radio"] { accent-color: var(--acc); }
 #controls {
   display: flex;
   gap: var(--space-4);
+  padding-block: var(--space-6);
 }
 
 #controls button { min-width: 7rem; }
@@ -245,9 +273,11 @@ noscript p {
   </form>
 
   <section id="timer" hidden>
-    <p id="phase">Get ready</p>
-    <p id="seconds" role="timer">10</p>
-    <p id="round-label">&nbsp;</p>
+    <div id="clock">
+      <p id="phase">Get ready</p>
+      <p id="seconds" role="timer">10</p>
+      <p id="round-label">&nbsp;</p>
+    </div>
     <div id="controls">
       <button type="button" id="pause">Pause</button>
       <button type="button" id="reset">Reset</button>
