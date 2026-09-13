@@ -47,7 +47,7 @@ jobs:
       # and shallow, so this is the one value guaranteed to be the deployed one.
       - run: ./scripts/build.sh "${GITHUB_SHA}"
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       # Only the build output. tests/ and scripts/ were being published too
       # when this uploaded the whole repository.
