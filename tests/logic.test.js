@@ -83,11 +83,32 @@ async function run({
     for (
         const id of [
             "setup", "rounds", "timer", "phase", "seconds", "round-label",
-            "pause", "reset", "live", "cues", "cue-label",
+            "pause", "reset", "live", "cues", "cue-scale",
         ]
     ) {
         els[id] = makeEl(id);
     }
+
+    // The label above each slider stop. The app highlights one and removes the
+    // ones this device cannot offer, so both have to be modelled.
+    let cueSpans = CUE_MODES.map((mode) => {
+        const span = { dataset: { mode }, on: false };
+        span.classList = {
+            toggle(name, force) {
+                if (name === "on") span.on = force;
+            },
+        };
+        span.remove = () => {
+            cueSpans = cueSpans.filter((s) => s !== span);
+        };
+        return span;
+    });
+
+    els["cue-scale"].querySelectorAll = (sel) => {
+        const wanted = [...sel.matchAll(/data-mode="([^"]+)"/g)].map((m) => m[1]);
+        return cueSpans.filter((s) => wanted.includes(s.dataset.mode));
+    };
+    Object.defineProperty(els["cue-scale"], "children", { get: () => cueSpans });
 
     const bodyClasses = new Set();
     const docHandlers = {};
@@ -217,7 +238,13 @@ async function run({
         await Promise.resolve();
     };
 
-    return { els, initialRounds, beeps, buzzes, urls, flashes, store, wakeLog, setVisibility };
+    const litLabel = () => cueSpans.find((s) => s.on)?.dataset.mode ?? null;
+    const labels = () => cueSpans.map((s) => s.dataset.mode);
+
+    return {
+        els, initialRounds, beeps, buzzes, urls, flashes, store, wakeLog,
+        setVisibility, litLabel, labels,
+    };
 }
 
 const freqs = (beeps, hz) => beeps.filter((b) => b.freq === hz);
@@ -277,36 +304,37 @@ Deno.test("sound and buzz modes are independent", async () => {
     ok(buzz.buzzes.length > 0);
 });
 
-Deno.test("the slider offers four stops when the device can buzz", async () => {
-    const { els } = await run({ rounds: 1 });
+Deno.test("the slider offers four labelled stops when the device can buzz", async () => {
+    const { els, labels, litLabel } = await run({ rounds: 1 });
     strictEqual(els.cues.max, "3");
-    // Default sits on the middle-left stop.
-    strictEqual(els["cue-label"].textContent, "Sound + buzz");
+    deepStrictEqual(labels(), ["sound", "both", "vibrate", "off"]);
+    strictEqual(litLabel(), "both");
 });
 
 Deno.test("without a Vibration API the slider shortens and a stored mode degrades", async () => {
-    const { els, buzzes, beeps } = await run({
+    const { els, labels, litLabel, buzzes, beeps } = await run({
         rounds: 1,
         vibrate: false,
         stored: { cues: "both" },
     });
     // Sound and Silent only: two dead stops are worse than a shorter slider.
     strictEqual(els.cues.max, "1");
+    deepStrictEqual(labels(), ["sound", "off"]);
     // "both" would be silent on a device that cannot buzz, so it falls back.
-    strictEqual(els["cue-label"].textContent, "Sound");
+    strictEqual(litLabel(), "sound");
     deepStrictEqual(buzzes, []);
     ok(beeps.length > 0);
 });
 
-Deno.test("every slider stop names itself for a screen reader", async () => {
+Deno.test("exactly one label is lit, and the slider names it for a screen reader", async () => {
     for (const [mode, label] of Object.entries({
         sound: "Sound",
         both: "Sound + buzz",
         vibrate: "Buzz",
         off: "Silent",
     })) {
-        const { els } = await run({ rounds: 1, pick: mode });
-        strictEqual(els["cue-label"].textContent, label);
+        const { els, litLabel } = await run({ rounds: 1, pick: mode });
+        strictEqual(litLabel(), mode);
         strictEqual(els.cues.getAttribute("aria-valuetext"), label);
     }
 });

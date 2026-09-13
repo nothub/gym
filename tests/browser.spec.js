@@ -154,21 +154,60 @@ test("round count round-trips through the url", async ({ page }) => {
     await expect(page.locator("#rounds")).toHaveValue("7");
 });
 
-test("the cue slider names its stops and remembers where it was left", async ({ page }) => {
+test("lights exactly one cue label and remembers where it was left", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.locator("#cues")).toHaveAttribute("max", "3");
-    await expect(page.locator("#cue-label")).toHaveText("Sound + buzz");
+    await expect(page.locator("#cue-scale span")).toHaveText([
+        "Sound", "Sound + buzz", "Buzz", "Silent",
+    ]);
+    await expect(page.locator("#cue-scale span.on")).toHaveText("Sound + buzz");
 
     // Drag to the far right with the keyboard, which is also the a11y path.
     await page.locator("#cues").focus();
     await page.keyboard.press("End");
-    await expect(page.locator("#cue-label")).toHaveText("Silent");
+    await expect(page.locator("#cue-scale span.on")).toHaveText("Silent");
     await expect(page.locator("#cues")).toHaveAttribute("aria-valuetext", "Silent");
 
     await page.reload();
-    await expect(page.locator("#cue-label")).toHaveText("Silent");
+    await expect(page.locator("#cue-scale span.on")).toHaveText("Silent");
 });
+
+test("stands each cue label over the stop it names", async ({ page }) => {
+    await page.goto("/");
+
+    const track = await page.locator("#cues").boundingBox();
+    const labels = page.locator("#cue-scale span");
+
+    // Labels must not collide, and must run left to right in slider order.
+    let previousRight = -Infinity;
+    for (let i = 0; i < 4; i++) {
+        const box = await labels.nth(i).boundingBox();
+        expect(box.x).toBeGreaterThan(previousRight);
+        previousRight = box.x + box.width;
+    }
+
+    await expectScaleHugsTrack(page);
+});
+
+/**
+ * The row spans the track and no label is stretched across it. Catches the
+ * abspos trap where left and right are both set and the box fills the gap
+ * instead of shrinking to its text.
+ */
+async function expectScaleHugsTrack(page) {
+    const track = await page.locator("#cues").boundingBox();
+    const labels = page.locator("#cue-scale span");
+    const first = await labels.first().boundingBox();
+    const last = await labels.last().boundingBox();
+
+    expect(first.x).toBeGreaterThanOrEqual(track.x - 1);
+    expect(last.x + last.width).toBeLessThanOrEqual(track.x + track.width + 1);
+
+    for (const box of [first, last]) {
+        expect(box.width).toBeLessThan(track.width * 0.4);
+    }
+}
 
 test("shortens the cue slider when the browser has no Vibration API", async ({ page }) => {
     await page.addInitScript(() => {
@@ -178,11 +217,16 @@ test("shortens the cue slider when the browser has no Vibration API", async ({ p
 
     // Sound and Silent only -- a range cannot grey out individual stops.
     await expect(page.locator("#cues")).toHaveAttribute("max", "1");
-    await expect(page.locator("#cue-label")).toHaveText("Sound");
+    await expect(page.locator("#cue-scale span")).toHaveText(["Sound", "Silent"]);
+    await expect(page.locator("#cue-scale span.on")).toHaveText("Sound");
 
     await page.locator("#cues").focus();
     await page.keyboard.press("End");
-    await expect(page.locator("#cue-label")).toHaveText("Silent");
+    await expect(page.locator("#cue-scale span.on")).toHaveText("Silent");
+
+    // Two labels means the last one is also nth-child(2); it must still sit at
+    // the right edge rather than at the inner stop's position.
+    await expectScaleHugsTrack(page);
 });
 
 test("starting the timer does not throw", async ({ page }) => {
