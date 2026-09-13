@@ -3,20 +3,24 @@ name: deploy
 on:
   push:
     branches: [trunk]
+  pull_request:
+    branches: [trunk]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Never let two deploys race; queue rather than cancel, so a push that lands
-# during a deploy still reaches production.
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # Keyed per ref rather than sharing the deploy's group, so a pull request
+    # under review cannot queue behind or in front of a deploy. Superseded
+    # pull request runs are disposable; every trunk commit earns its own.
+    concurrency:
+      group: test-${{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
     steps:
       - uses: actions/checkout@v7
 
@@ -31,6 +35,16 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+
+    # Trunk only. A pull request's ref is refs/pull/N/merge, so this excludes
+    # them, and it also stops a manual dispatch from some branch publishing.
+    if: github.ref == 'refs/heads/trunk'
+
+    # Never let two deploys race; queue rather than cancel, so a push landing
+    # during a deploy still reaches production.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
 
     permissions:
       pages: write
