@@ -1,0 +1,59 @@
+name: deploy
+
+on:
+  push:
+    branches: [trunk]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never let two deploys race; queue rather than cancel, so a push that lands
+# during a deploy still reaches production.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # Both tiers. The browser tier builds its own Playwright image, so this
+      # step is the slow one.
+      - run: ./scripts/test.sh
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # Replaces the "dev" placeholders in index.html and sw.js. Fails loudly
+      # rather than publishing a page that still claims to be a dev build.
+      - run: ./scripts/inject-build.sh "${GITHUB_SHA}"
+
+      - uses: actions/configure-pages@v5
+
+      # The whole repo, matching what deploy-from-branch served. .git and
+      # .github are excluded by the action regardless.
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

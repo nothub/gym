@@ -281,9 +281,14 @@ noscript p {
 </main>
 
 <footer>
-  <!-- _blank so a standalone install hands this to the browser rather than
-       navigating the timer away mid-workout. -->
+  <!-- _blank so a standalone install hands these to the browser rather than
+       navigating the timer away mid-workout.
+       The build link is rewritten at deploy time by scripts/inject-build.sh;
+       un-stamped it reads "dev" and points at the commit list, which is the
+       honest answer for a copy that was never deployed. -->
   <a href="https://github.com/nothub/gym" target="_blank" rel="noopener noreferrer">nothub/gym</a>
+  <span aria-hidden="true">·</span>
+  <a id="build" href="https://github.com/nothub/gym/commits/trunk" target="_blank" rel="noopener noreferrer">dev</a>
 </footer>
 
 <p id="live" class="sr-only" aria-live="polite"></p>

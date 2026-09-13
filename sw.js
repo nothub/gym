@@ -1,10 +1,10 @@
 // Offline shell for the EMOM timer.
 //
-// CACHE is stamped by ./scripts/stamp.sh from a hash of the assets below -- do
-// not edit it by hand. Run it before deploying; the activate handler then drops
-// whatever the previous hash was.
+// CACHE is rewritten to the deployed commit by scripts/inject-build.sh, which
+// the deploy workflow runs. Do not edit it by hand. A checkout that was never
+// deployed keeps "dev", which is correct: it is not any published build.
 
-const CACHE = "emom-71dc57980964";
+const CACHE = "emom-dev";
 const ASSETS = [
   "./",
   "./index.html",

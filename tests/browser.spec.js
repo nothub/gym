@@ -63,14 +63,24 @@ test("centres the digits horizontally", async ({ page }) => {
     expect(Math.abs(seconds.x + seconds.width / 2 - width / 2)).toBeLessThan(width * 0.03);
 });
 
-test("links to the repository without navigating the timer away", async ({ page }) => {
+test("links to the repository and the build without navigating away", async ({ page }) => {
     await page.goto("/");
 
-    const link = page.locator("footer a");
-    await expect(link).toHaveAttribute("href", "https://github.com/nothub/gym");
-    // Opening in place would lose a running workout in a standalone install.
-    await expect(link).toHaveAttribute("target", "_blank");
-    await expect(link).toHaveAttribute("rel", /noopener/);
+    const repo = page.locator("footer a").first();
+    const build = page.locator("#build");
+
+    await expect(repo).toHaveAttribute("href", "https://github.com/nothub/gym");
+
+    // Source is un-stamped by construction: scripts/inject-build.sh rewrites
+    // these at deploy time, after the commit this would be testing exists.
+    await expect(build).toHaveText("dev");
+    await expect(build).toHaveAttribute("href", /\/commits\/trunk$/);
+
+    for (const link of [repo, build]) {
+        // Opening in place would lose a running workout in a standalone install.
+        await expect(link).toHaveAttribute("target", "_blank");
+        await expect(link).toHaveAttribute("rel", /noopener/);
+    }
 });
 
 test("never scrolls horizontally", async ({ page }) => {
