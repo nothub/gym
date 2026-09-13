@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EMOM Timer</title>
+<meta name="theme-color" content="#0f0f0f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.5rem;
+  --text-huge: clamp(5rem, 42vmin, 20rem);
+
+  /* Palette carried over from kbgen. --dim is #888 rather than kbgen's #666:
+     #666 on #0f0f0f is 3.3:1, under the 4.5:1 needed for small text. */
+  --bg: #0f0f0f;
+  --srf: #1a1a1a;
+  --brd: #2c2c2c;
+  --txt: #efefef;
+  --dim: #888888;
+  --acc: #f97316;
+  --ok: #4ade80;
+
+  --radius: 0.5rem;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: var(--bg);
+  color: var(--txt);
+  font-family: system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+h1 {
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-lg);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: center;
+}
+
+/* Setup */
+
+#setup {
+  display: grid;
+  gap: var(--space-4);
+  width: min(20rem, 100%);
+}
+
+label {
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+
+input[type="number"] {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-4);
+  font-size: var(--text-lg);
+  font-family: inherit;
+  text-align: center;
+  color: var(--txt);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+}
+
+button {
+  padding: var(--space-4);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--txt);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+button[type="submit"] {
+  color: var(--bg);
+  background: var(--acc);
+  border-color: var(--acc);
+  font-weight: 600;
+}
+
+:is(button, input):focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+/* Cue settings */
+
+fieldset {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+}
+
+legend {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+
+fieldset label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--txt);
+  cursor: pointer;
+}
+
+fieldset label:has(input:disabled) {
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+input[type="radio"] { accent-color: var(--acc); }
+
+#vibe-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+
+/* Timer */
+
+#timer {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: center;
+  text-align: center;
+}
+
+#phase {
+  margin: 0;
+  font-size: var(--text-sm);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+#seconds {
+  margin: 0;
+  font-size: var(--text-huge);
+  font-weight: 200;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+
+#seconds.warn { color: var(--acc); }
+#seconds.done { color: var(--ok); }
+
+#round-label {
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+#controls {
+  display: flex;
+  gap: var(--space-4);
+}
+
+#controls button { min-width: 7rem; }
+
+/* Cues.
+   The flash has to read from across a room, so it takes the whole viewport.
+   Text flips to --bg on --acc (6.8:1) for the duration rather than staying
+   light, which would be 2.4:1 and unreadable. */
+
+@keyframes flash-body { 0%, 60% { background: var(--acc); color: var(--bg); } }
+@keyframes flash-label { 0%, 60% { color: var(--bg); } }
+
+body.flash { animation: flash-body 400ms ease-out; }
+body.flash :is(#phase, #round-label, #seconds) { animation: flash-label 400ms ease-out; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Starts exactly when the count hits 3, so the 1s loop stays in phase with it. */
+  #seconds.warn { animation: pulse 1s ease-out infinite; }
+  @keyframes pulse { from { transform: scale(1.06); } to { transform: scale(1); } }
+}
+
+[hidden] { display: none !important; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+noscript p {
+  max-width: 28rem;
+  text-align: center;
+  color: var(--dim);
+}
+</style>
+</head>
+<body>
+
+<main>
+  <form id="setup">
+    <h1>EMOM</h1>
+    <div>
+      <label for="rounds">Rounds (minutes)</label>
+      <input id="rounds" name="rounds" type="number" inputmode="numeric"
+             min="1" max="99" step="1" value="10" required>
+    </div>
+    <fieldset id="cue-settings">
+      <legend>Cues</legend>
+      <label><input type="radio" name="cue" value="both" checked> Sound + buzz</label>
+      <label><input type="radio" name="cue" value="sound"> Sound</label>
+      <label><input type="radio" name="cue" value="vibrate"> Buzz</label>
+      <label><input type="radio" name="cue" value="off"> Silent</label>
+      <p id="vibe-note" hidden>This browser has no Vibration API, so buzz is unavailable. The screen still flashes.</p>
+    </fieldset>
+
+    <button type="submit">Start</button>
+  </form>
+
+  <section id="timer" hidden>
+    <p id="phase">Get ready</p>
+    <p id="seconds" role="timer">10</p>
+    <p id="round-label">&nbsp;</p>
+    <div id="controls">
+      <button type="button" id="pause">Pause</button>
+      <button type="button" id="reset">Reset</button>
+    </div>
+  </section>
+</main>
+
+<p id="live" class="sr-only" aria-live="polite"></p>
+
+<noscript>
+  <p>This timer needs JavaScript. There is no way to count seconds without it.</p>
+</noscript>
+
+<script>
+"use strict";
+
+const ROUND_MS = 60000;
+const PREP_MS = 10000;
+
+const el = {
+  setup: document.getElementById("setup"),
+  rounds: document.getElementById("rounds"),
+  timer: document.getElementById("timer"),
+  phase: document.getElementById("phase"),
+  seconds: document.getElementById("seconds"),
+  roundLabel: document.getElementById("round-label"),
+  pause: document.getElementById("pause"),
+  reset: document.getElementById("reset"),
+  live: document.getElementById("live"),
+  cueSettings: document.getElementById("cue-settings"),
+  vibeNote: document.getElementById("vibe-note"),
+};
+
+/* ---------- preferences ---------- */
+// Split follows kbgen: session shape (how long today) in the URL so a specific
+// workout is bookmarkable, durable preference in localStorage.
+
+const STORE_KEY = "emom";
+const MAX_ROUNDS = 99;
+
+// Chrome desktop exposes vibrate() with no hardware behind it; that is harmless.
+// The case this actually catches is iOS Safari, which has never shipped it.
+const canVibrate = typeof navigator.vibrate === "function";
+
+let cueMode = "both"; // both | sound | vibrate | off
+
+const wantSound = () => cueMode === "both" || cueMode === "sound";
+const wantBuzz = () => canVibrate && (cueMode === "both" || cueMode === "vibrate");
+const validRounds = (v) => Number.isInteger(v) && v >= 1 && v <= MAX_ROUNDS;
+
+function loadPrefs() {
+  // localStorage throws rather than returning null when storage is blocked.
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY)) || {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function savePrefs(patch) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ ...loadPrefs(), ...patch }));
+  } catch (_) {}
+}
+
+function pushUrl(rounds) {
+  try {
+    const p = new URLSearchParams(location.search);
+    p.set("rounds", String(rounds));
+    history.replaceState(null, "", "?" + p.toString());
+  } catch (_) {}
+}
+
+/* ---------- audio ---------- */
+// Carried over from kbgen, which learned both of these the hard way:
+// the 5 ms attack ramp removes the click an instantaneous gain step produces,
+// and the resume() covers a context the browser suspended while backgrounded.
+
+let audioContext = null;
+
+function initAudio() {
+  if (!audioContext) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioContext = new Ctx();
+  }
+  if (audioContext.state === "suspended") audioContext.resume();
+}
+
+function beep(frequency, duration, volume = 0.33) {
+  initAudio();
+  if (!audioContext) return;
+  const osc = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  osc.connect(gain);
+  gain.connect(audioContext.destination);
+  osc.frequency.value = frequency;
+  const now = audioContext.currentTime;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(volume, now + 0.005);
+  // exponentialRampToValueAtTime cannot target 0, hence 0.001.
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  osc.start(now);
+  osc.stop(now + duration);
+}
+
+function flash() {
+  // Removing the class, forcing a reflow, then re-adding it is what restarts a
+  // CSS animation that is already running.
+  document.body.classList.remove("flash");
+  void document.body.offsetWidth;
+  document.body.classList.add("flash");
+}
+
+// The flash is never gated: "Silent" means no sound and no buzz, not no cue.
+const cues = {
+  tick: () => {
+    if (wantSound()) beep(660, 0.07, 0.25);
+    if (wantBuzz()) navigator.vibrate(50);
+  },
+  start: () => {
+    if (wantSound()) beep(880, 0.12);
+    if (wantBuzz()) navigator.vibrate(200);
+    flash();
+  },
+  done: () => {
+    if (wantSound()) {
+      beep(523, 0.15);
+      setTimeout(() => beep(659, 0.15), 220);
+      setTimeout(() => beep(784, 0.3), 440);
+    }
+    if (wantBuzz()) navigator.vibrate([120, 80, 120, 80, 320]);
+    flash();
+  },
+};
+
+/* ---------- screen wake lock ---------- */
+
+let wakeLock = null;
+
+async function holdScreen() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+  } catch (_) {
+    // Denied on low battery, or the tab lost focus mid-request. Not fatal.
+  }
+}
+
+function releaseScreen() {
+  if (!wakeLock) return;
+  wakeLock.release();
+  wakeLock = null;
+}
+
+// The browser drops the lock whenever the page is hidden, and does not restore
+// it on return. Re-request it if a workout is still on screen.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !el.timer.hidden) holdScreen();
+});
+
+/* ---------- clock ---------- */
+
+// Pure: elapsed ms since start -> what belongs on screen.
+// Kept free of DOM and clock so it can be tested directly.
+function derive(elapsed, totalRounds) {
+  if (elapsed < PREP_MS) {
+    return { phase: "prep", round: 0, remaining: PREP_MS - elapsed };
+  }
+  const t = elapsed - PREP_MS;
+  const round = Math.floor(t / ROUND_MS) + 1;
+  if (round > totalRounds) {
+    return { phase: "done", round: totalRounds, remaining: 0 };
+  }
+  return { phase: "run", round, remaining: ROUND_MS - (t % ROUND_MS) };
+}
+
+const clock = {
+  total: 0,
+  startedAt: 0,
+  pausedAt: 0,
+  pausedTotal: 0,
+  frame: null,
+};
+
+// performance.now() rather than Date.now(): monotonic, so a system clock
+// change or NTP correction mid-workout cannot skew the round boundaries.
+function elapsed() {
+  const now = clock.pausedAt || performance.now();
+  return now - clock.startedAt - clock.pausedTotal;
+}
+
+let lastSecond = null;
+let lastRound = null;
+let lastPhase = null;
+
+function render(state, secs) {
+  if (state.phase === "done") {
+    el.phase.textContent = "Done";
+    el.seconds.textContent = "✓";
+    el.seconds.className = "done";
+    el.roundLabel.textContent = `${clock.total} rounds`;
+  } else {
+    el.phase.textContent = state.phase === "prep" ? "Get ready" : "Work";
+    el.seconds.textContent = String(secs);
+    el.seconds.className = secs <= 3 ? "warn" : "";
+    el.roundLabel.textContent =
+      state.phase === "prep" ? " " : `Round ${state.round} / ${clock.total}`;
+  }
+
+  // The ticking number is role="timer" so it is not announced every second.
+  // Phase and round changes are worth announcing, and only those.
+  if (state.phase !== lastPhase || state.round !== lastRound) {
+    el.live.textContent =
+      state.phase === "done" ? "Workout complete"
+      : state.phase === "prep" ? "Get ready"
+      : `Round ${state.round} of ${clock.total}`;
+  }
+}
+
+function cue(state, secs) {
+  if (state.phase === "done") {
+    cues.done();
+  } else if (state.phase === "run" && state.round !== lastRound) {
+    cues.start();
+  } else if (secs <= 3 && secs >= 1 && secs !== lastSecond) {
+    cues.tick();
+  }
+}
+
+function tick() {
+  const state = derive(elapsed(), clock.total);
+  const secs = Math.ceil(state.remaining / 1000);
+
+  render(state, secs);
+  cue(state, secs);
+  lastSecond = secs;
+  lastRound = state.round;
+  lastPhase = state.phase;
+
+  if (state.phase === "done") {
+    stopLoop();
+    releaseScreen();
+    el.pause.hidden = true;
+    el.reset.textContent = "Again";
+    return;
+  }
+  clock.frame = requestAnimationFrame(tick);
+}
+
+function stopLoop() {
+  if (clock.frame !== null) cancelAnimationFrame(clock.frame);
+  clock.frame = null;
+}
+
+function start(totalRounds) {
+  clock.total = totalRounds;
+  clock.startedAt = performance.now();
+  clock.pausedAt = 0;
+  clock.pausedTotal = 0;
+  lastSecond = null;
+  lastRound = null;
+  lastPhase = null;
+
+  el.setup.hidden = true;
+  el.timer.hidden = false;
+  el.pause.hidden = false;
+  el.pause.textContent = "Pause";
+  el.reset.textContent = "Reset";
+  // Kept through pause too: a paused timer is a rest, and the screen dying
+  // mid-rest is the thing this exists to prevent.
+  holdScreen();
+  tick();
+}
+
+function togglePause() {
+  if (clock.pausedAt) {
+    clock.pausedTotal += performance.now() - clock.pausedAt;
+    clock.pausedAt = 0;
+    el.pause.textContent = "Pause";
+    tick();
+  } else {
+    clock.pausedAt = performance.now();
+    stopLoop();
+    el.pause.textContent = "Resume";
+  }
+}
+
+function toSetup() {
+  stopLoop();
+  releaseScreen();
+  clock.pausedAt = 0;
+  document.body.classList.remove("flash");
+  el.timer.hidden = true;
+  el.setup.hidden = false;
+  el.rounds.focus();
+}
+
+/* ---------- wiring ---------- */
+
+el.setup.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const n = Math.floor(el.rounds.valueAsNumber);
+  if (!validRounds(n)) return;
+  savePrefs({ rounds: n });
+  // Unlock audio on the gesture the autoplay policy wants. The first beep is
+  // 7 s away, by which point there is no gesture left to hang it on.
+  if (wantSound()) initAudio();
+  start(n);
+});
+
+el.rounds.addEventListener("input", () => {
+  const n = Math.floor(el.rounds.valueAsNumber);
+  if (validRounds(n)) pushUrl(n);
+});
+
+el.cueSettings.addEventListener("change", (e) => {
+  if (e.target.name !== "cue") return;
+  cueMode = e.target.value;
+  savePrefs({ cues: cueMode });
+  if (wantSound()) initAudio();
+});
+
+el.pause.addEventListener("click", togglePause);
+el.reset.addEventListener("click", toSetup);
+
+function init() {
+  const prefs = loadPrefs();
+
+  if (!canVibrate) {
+    for (const input of el.cueSettings.querySelectorAll('input[value="both"], input[value="vibrate"]')) {
+      input.disabled = true;
+    }
+    el.vibeNote.hidden = false;
+  }
+
+  let mode = prefs.cues || "both";
+  if (!canVibrate && (mode === "both" || mode === "vibrate")) mode = "sound";
+  cueMode = mode;
+  el.cueSettings.querySelector(`input[value="${mode}"]`).checked = true;
+
+  // URL beats stored preference: a bookmarked ?rounds=12 is an explicit ask.
+  const fromUrl = Number(new URLSearchParams(location.search).get("rounds"));
+  const rounds = validRounds(fromUrl) ? fromUrl
+    : validRounds(prefs.rounds) ? prefs.rounds
+    : 10;
+  el.rounds.value = String(rounds);
+  pushUrl(rounds);
+}
+
+init();
+
+// isSecureContext rather than a protocol check: it is true for https and for
+// localhost, which is exactly where a service worker is allowed to register.
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
