@@ -1,10 +1,16 @@
 // Offline shell for the EMOM timer.
 //
-// CACHE is rewritten to the deployed commit by scripts/inject-build.sh, which
-// the deploy workflow runs. Do not edit it by hand. A checkout that was never
-// deployed keeps "dev", which is correct: it is not any published build.
+// The build id comes from version.js, which the build rewrites, so this file
+// is never touched. Imported scripts are inside the byte-for-byte update check
+// (Chrome 78+), so a new version.js is what makes the browser install a new
+// worker -- which is the only reason the cache name needs to change at all.
+//
+// The page registers with updateViaCache: "none". Without it the HTTP cache is
+// still consulted for imported scripts, and a stale version.js would hold the
+// update back for as long as the host's max-age.
+importScripts("./version.js");
 
-const CACHE = "emom-dev";
+const CACHE = `emom-${self.BUILD}`;
 const ASSETS = [
   "./",
   "./index.html",

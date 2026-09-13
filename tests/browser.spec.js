@@ -151,6 +151,19 @@ test("ships a manifest Chrome will accept for install", async ({ page, request }
     expect(manifest.icons.some((i) => i.purpose === "maskable")).toBe(true);
 });
 
+test("names its cache after the build it was compiled from", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => navigator.serviceWorker.ready);
+
+    const build = await page.locator("#build").textContent();
+    const keys = await page.evaluate(() => caches.keys());
+
+    // The worker gets this through importScripts("./version.js"); the footer
+    // gets it from a separate substitution. They can only agree if the build
+    // stamped both, so this covers the whole chain in one assertion.
+    expect(keys).toContain(`emom-${build}`);
+});
+
 test("serves the app from cache with the network cut", async ({ page, context }) => {
     await page.goto("/");
     await page.evaluate(() => navigator.serviceWorker.ready);

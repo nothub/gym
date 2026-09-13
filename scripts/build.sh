@@ -50,8 +50,10 @@ cp -R "${SRC}/." "${OUT}/"
 
 replace "${OUT}/index.html" "/commits/trunk" "/commit/${SHA}"
 replace "${OUT}/index.html" ">dev</a>" ">${SHORT}</a>"
-replace "${OUT}/sw.js" '"emom-dev"' "\"emom-${SHORT}\""
 
-printf '%s\n' "${SHORT}" > "${OUT}/version"
+# sw.js reads this rather than carrying the id itself, so the worker source is
+# never rewritten. Imported scripts count toward the service worker's update
+# check, so changing this file is what triggers a reinstall.
+replace "${OUT}/version.js" '"dev"' "\"${SHORT}\""
 
 echo "build: ${OUT} from ${SRC} at ${SHORT}" >&2

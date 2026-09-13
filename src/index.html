@@ -617,7 +617,9 @@ init();
 // localhost, which is exactly where a service worker is allowed to register.
 if ("serviceWorker" in navigator && window.isSecureContext) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+    // updateViaCache: the byte-check that drives updates reads version.js, and
+    // without this the HTTP cache can hand back a stale copy of it.
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {});
   });
 }
 </script>
