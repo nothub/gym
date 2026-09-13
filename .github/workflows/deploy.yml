@@ -51,7 +51,7 @@ jobs:
 
       # Only the build output. tests/ and scripts/ were being published too
       # when this uploaded the whole repository.
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
