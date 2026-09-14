@@ -478,7 +478,7 @@ noscript p {
 
     <fieldset id="strategies">
       <legend class="sr-only">Strategy</legend>
-      <label><input type="radio" name="strategy" value="intervals" checked> 💪 Intervals</label>
+      <label><input type="radio" name="strategy" value="intervals" checked> ⏱️ Intervals</label>
       <label><input type="radio" name="strategy" value="amrap"> ⚡ AMRAP</label>
       <label><input type="radio" name="strategy" value="rft"> 🏁 RFT</label>
     </fieldset>
@@ -1038,7 +1038,7 @@ function countKeyFor(strategy) {
 // repeating it here says nothing the field does not. Each label names what
 // its own number is instead -- a repeat count, a duration, a target.
 function countLabelFor(strategy) {
-  if (strategy === "amrap") return "⏱️ Minutes";
+  if (strategy === "amrap") return "⏳ Minutes";
   if (strategy === "rft") return "🎯 Rounds";
   return "🔁 Cycles";
 }

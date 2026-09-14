@@ -586,7 +586,7 @@ Deno.test("the count field is relabelled per strategy", async () => {
     strictEqual(intervals["count-label"].textContent, "🔁 Cycles");
 
     const { els: amrap } = await run({ strategy: "amrap", count: 1, stopAt: 0 });
-    strictEqual(amrap["count-label"].textContent, "⏱️ Minutes");
+    strictEqual(amrap["count-label"].textContent, "⏳ Minutes");
 
     const { els: rft } = await run({ strategy: "rft", count: 1, stopAt: 0 });
     strictEqual(rft["count-label"].textContent, "🎯 Rounds");

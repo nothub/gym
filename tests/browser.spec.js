@@ -313,7 +313,7 @@ test("switching strategy swaps the preset row and dims/re-enables work and rest"
     await expect(page.locator("#interval-fields")).toHaveClass("inactive");
     await expect(page.locator("#work-secs")).toBeDisabled();
     await expect(page.locator("#rest-secs")).toBeDisabled();
-    await expect(page.locator("#count-label")).toHaveText("⏱️ Minutes");
+    await expect(page.locator("#count-label")).toHaveText("⏳ Minutes");
 
     await strategy(page, "rft");
     await expect(page.locator("#amrap-presets")).toBeHidden();
