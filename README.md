@@ -1,9 +1,9 @@
-# gym
+# gym-timer
 
 An EMOM timer. Pick a number of minutes, press start, do the work at the top of
 each one.
 
-Live at <https://nothub.github.io/gym/>.
+Live at <https://nothub.github.io/gym-timer/>.
 
 EMOM means every minute on the minute. A round is always 60 seconds, so the
 round count is the only thing to configure. Three short beeps lead into each

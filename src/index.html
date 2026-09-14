@@ -298,9 +298,9 @@ noscript p {
        The build link is filled in from version.js at runtime. What is written
        here is the fallback: "dev" pointing at the commit list is the honest
        answer for a copy that was never built. -->
-  <a href="https://github.com/nothub/gym" target="_blank" rel="noopener noreferrer">nothub/gym</a>
+  <a href="https://github.com/nothub/gym-timer" target="_blank" rel="noopener noreferrer">nothub/gym-timer</a>
   <span aria-hidden="true">·</span>
-  <a id="build" href="https://github.com/nothub/gym/commits/trunk" target="_blank" rel="noopener noreferrer">dev</a>
+  <a id="build" href="https://github.com/nothub/gym-timer/commits/trunk" target="_blank" rel="noopener noreferrer">dev</a>
 </footer>
 
 <p id="live" class="sr-only" aria-live="polite"></p>
@@ -652,7 +652,7 @@ function init() {
   // GitHub resolves abbreviated hashes, so the short id is enough to link to.
   if (self.BUILD && self.BUILD !== "dev") {
     el.build.textContent = self.BUILD;
-    el.build.href = `https://github.com/nothub/gym/commit/${self.BUILD}`;
+    el.build.href = `https://github.com/nothub/gym-timer/commit/${self.BUILD}`;
   }
 
   el.rounds.value = String(validRounds(prefs.rounds) ? prefs.rounds : 10);

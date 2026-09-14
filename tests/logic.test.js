@@ -335,7 +335,7 @@ Deno.test("sound and buzz modes are independent", async () => {
 Deno.test("shows the build id in the footer when there is one", async () => {
     const { els } = await run({ rounds: 1, build: "4094c69" });
     strictEqual(els.build.textContent, "4094c69");
-    strictEqual(els.build.href, "https://github.com/nothub/gym/commit/4094c69");
+    strictEqual(els.build.href, "https://github.com/nothub/gym-timer/commit/4094c69");
 });
 
 Deno.test("leaves the footer fallback alone for an unbuilt copy", async () => {

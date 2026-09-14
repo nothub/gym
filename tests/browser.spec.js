@@ -83,7 +83,7 @@ test("links to the repository and the build without navigating away", async ({ p
     const repo = page.locator("footer a").first();
     const build = page.locator("#build");
 
-    await expect(repo).toHaveAttribute("href", "https://github.com/nothub/gym");
+    await expect(repo).toHaveAttribute("href", "https://github.com/nothub/gym-timer");
 
     // Filled in at runtime from version.js, which the build stamps. Asserting
     // the shape rather than a fixed value tests that path end to end: an
