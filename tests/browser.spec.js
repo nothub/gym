@@ -198,13 +198,18 @@ test("a preset fills the fields but never switches which strategy is active", as
     await expect(page.locator("#count")).toHaveValue("8");
 });
 
-test("switching strategy swaps the preset row and the visible fields", async ({ page }) => {
+test("switching strategy swaps the preset row and dims/re-enables work and rest", async ({ page }) => {
     await page.goto("/");
 
     await strategy(page, "amrap");
     await expect(page.locator("#intervals-presets")).toBeHidden();
     await expect(page.locator("#amrap-presets")).toBeVisible();
-    await expect(page.locator("#interval-fields")).toBeHidden();
+    // Dimmed in place, not hidden: main centres the form, so removing the
+    // fields would shrink it and drag everything above them down too.
+    await expect(page.locator("#interval-fields")).toBeVisible();
+    await expect(page.locator("#interval-fields")).toHaveClass("inactive");
+    await expect(page.locator("#work-secs")).toBeDisabled();
+    await expect(page.locator("#rest-secs")).toBeDisabled();
     await expect(page.locator("#count-label")).toHaveText("Minutes");
 
     await strategy(page, "rft");
@@ -215,8 +220,26 @@ test("switching strategy swaps the preset row and the visible fields", async ({ 
     await strategy(page, "intervals");
     await expect(page.locator("#rft-presets")).toBeHidden();
     await expect(page.locator("#intervals-presets")).toBeVisible();
-    await expect(page.locator("#interval-fields")).toBeVisible();
+    await expect(page.locator("#interval-fields")).not.toHaveClass("inactive");
+    await expect(page.locator("#work-secs")).toBeEnabled();
+    await expect(page.locator("#rest-secs")).toBeEnabled();
     await expect(page.locator("#count-label")).toHaveText("🔁 Cycles");
+});
+
+test("nothing on the setup screen moves when switching strategy", async ({ page }) => {
+    await page.goto("/");
+
+    // main centres the form vertically. Before work/rest were dimmed in place
+    // rather than removed, switching away from Intervals shrank the form and
+    // re-centred it, dragging the header and strategy row down with it --
+    // this caught that even though neither element's own box ever changed.
+    const h1Top = () => page.locator("h1").evaluate((n) => n.getBoundingClientRect().y);
+    const before = await h1Top();
+
+    for (const s of ["amrap", "rft", "intervals"]) {
+        await strategy(page, s);
+        expect(await h1Top()).toBe(before);
+    }
 });
 
 test("preset buttons are the same size in every strategy's row", async ({ page }) => {

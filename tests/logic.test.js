@@ -561,13 +561,21 @@ Deno.test("work and rest are never hidden: Intervals shows them without a preset
     strictEqual(els["interval-fields"].hidden, false);
 });
 
-Deno.test("AMRAP and RFT hide the work/rest fields; Intervals shows its own presets only", async () => {
+Deno.test("AMRAP and RFT dim and disable work/rest rather than removing them", async () => {
+    // Dimmed in place, not hidden: main centres the form, so removing the
+    // fields would shrink it and drag everything above them down too.
     for (const strategy of ["amrap", "rft"]) {
         const { els } = await run({ strategy, count: 1, stopAt: 0 });
-        strictEqual(els["interval-fields"].hidden, true, strategy);
+        strictEqual(els["interval-fields"].hidden, false, strategy);
+        strictEqual(els["interval-fields"].className, "inactive", strategy);
+        strictEqual(els["work-secs"].disabled, true, strategy);
+        strictEqual(els["rest-secs"].disabled, true, strategy);
         strictEqual(els["intervals-presets"].hidden, true, strategy);
     }
     const { els } = await run({ count: 1, stopAt: 0 });
+    strictEqual(els["interval-fields"].className, "");
+    strictEqual(els["work-secs"].disabled, false);
+    strictEqual(els["rest-secs"].disabled, false);
     strictEqual(els["intervals-presets"].hidden, false);
     strictEqual(els["amrap-presets"].hidden, true);
     strictEqual(els["rft-presets"].hidden, true);

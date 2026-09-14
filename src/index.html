@@ -245,9 +245,15 @@ input[type="checkbox"] {
 #interval-fields {
   display: flex;
   gap: var(--space-4);
+  transition: opacity 150ms ease-out;
 }
 
-#custom-fields > div { flex: 1; }
+#interval-fields > div { flex: 1; }
+
+/* AMRAP/RFT: dimmed rather than removed, so the form's height -- and
+   everything main's vertical centring positions relative to it -- does not
+   change when switching strategy. */
+#interval-fields.inactive { opacity: 0.35; }
 
 /* Timer */
 
@@ -953,8 +959,15 @@ function countLabelFor(strategy) {
 }
 
 function showStrategy(strategy) {
-  el.intervalFields.hidden = strategy !== "intervals";
-  el.intervalsPresets.hidden = strategy !== "intervals";
+  // Work/rest stay in the layout rather than being removed from it: main
+  // centres the form vertically, so a shorter form on AMRAP/RFT would drag
+  // everything above it down too, not just the fields themselves. Dimmed and
+  // disabled instead, matching how the Buzz checkbox reads when unsupported.
+  const isIntervals = strategy === "intervals";
+  el.intervalFields.className = isIntervals ? "" : "inactive";
+  el.workSecs.disabled = !isIntervals;
+  el.restSecs.disabled = !isIntervals;
+  el.intervalsPresets.hidden = !isIntervals;
   el.amrapPresets.hidden = strategy !== "amrap";
   el.rftPresets.hidden = strategy !== "rft";
   el.countLabel.textContent = countLabelFor(strategy);
