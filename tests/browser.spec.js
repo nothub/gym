@@ -463,7 +463,7 @@ test("RFT: the countdown shows elapsed time and ends on the target round", async
     await page.clock.runFor(50);
     // Flag on the phase label, digits stay bare: elapsed time is RFT's actual
     // result, and --text-huge has no room for a glyph beside it.
-    await expect(page.locator("#phase")).toHaveText("🏁 Done");
+    await expect(page.locator("#phase")).toHaveText("Done");
     await expect(page.locator("#seconds")).toHaveText("1:05");
     await expect(page.locator("#round-label")).toHaveText("2 rounds");
 });

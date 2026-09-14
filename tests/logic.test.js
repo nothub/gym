@@ -396,8 +396,9 @@ async function run({
                 t.fn();
             });
         if (stopAt === null) {
-            // RFT's phase reads "🏁 Done", not "Done" -- match the suffix so
-            // completion detection still works for it.
+            // Suffix rather than equality: this once had to tolerate RFT's
+            // "🏁 Done", and staying loose costs nothing if a strategy
+            // ever prefixes the label again.
             if (doneAt === null && els.phase.textContent.endsWith("Done")) doneAt = now;
             if (doneAt !== null && now - doneAt > 1000) break;
         }
@@ -582,6 +583,20 @@ Deno.test("AMRAP and RFT dim and disable work/rest rather than removing them", a
     strictEqual(els["rft-presets"].hidden, true);
 });
 
+Deno.test("every strategy's finish reads the same phase label", async () => {
+    // The huge slot differs by strategy because the results genuinely differ:
+    // a glyph where there is no number, elapsed time for RFT. The label under
+    // it is not a second glyph slot, and RFT alone once filled it with a flag.
+    const runs = {
+        intervals: await run({ count: 1 }),
+        amrap: await run({ strategy: "amrap", count: 1 }),
+        rft: await run({ strategy: "rft", count: 1, tapAt: [PREP_MS + 2_000] }),
+    };
+    for (const [name, r] of Object.entries(runs)) {
+        strictEqual(r.els.phase.textContent, "Done", `${name} finish label`);
+    }
+});
+
 Deno.test("the count field is relabelled per strategy", async () => {
     const { els: intervals } = await run({ count: 1, stopAt: 0 });
     strictEqual(intervals["count-label"].textContent, "🔁 Cycles");
@@ -720,7 +735,7 @@ Deno.test("RFT counts up and ends on the target tap, not on elapsed time", async
     });
     // Flag on the phase label, digits stay bare: elapsed time is RFT's actual
     // score, and --text-huge has no room for a glyph beside it.
-    strictEqual(els.phase.textContent, "🏁 Done");
+    strictEqual(els.phase.textContent, "Done");
     strictEqual(els.seconds.textContent, "0:20");
     strictEqual(els["round-label"].textContent, "3 rounds");
 });
