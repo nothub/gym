@@ -17,10 +17,11 @@ what makes EMOM `Intervals(60s work, 0s rest)`.
 _Avoid_: round, interval, rep, set
 
 **Round**:
-One pass through the athlete's own work, recorded by a tap. The app counts
-rounds; it never knows what one contained. AMRAP counts them as its score, RFT
-counts down to a target. Partial rounds are not representable, because the app
-cannot see reps.
+One pass through the athlete's own work, recorded by a tap. RFT alone has them:
+its round count is the finish condition, so a tap is the only thing that can end
+it. The app never knows what a round contained, and partial rounds are not
+representable, because the app cannot see reps. AMRAP's rounds are the athlete's
+to count, not the app's.
 _Avoid_: lap, cycle, rep, set
 
 **Window**:
@@ -56,14 +57,11 @@ than relying on context:
 | --- | --- | --- |
 | Interval cycle | `intervalCycles` | "Cycles" |
 | Window | `amrapWindow` | "Minutes" |
-| Round, as a target | `rftRounds` | "Rounds" |
-| Round, as a score | counted at runtime | "Rounds" |
+| Round | `rftRounds` | "Rounds" |
 
-Both Rounds rows read the same on screen because they are the same concept. One
-is a target the athlete sets on the setup screen, the other a count the app
-reports on the done screen, and which is which is never in doubt from where it
-appears. Only the field names need qualifying, because code has no screen to sit
-on.
+Rounds need no qualifying any more: only RFT has them, and its target and its
+running count are the same number approached from either end. AMRAP once counted
+rounds as a score, which is what made a second row necessary.
 
 "Round" in prose is fine where only one Strategy is in play, because it names one
 concept. What this glossary retires is a **field or label called `rounds`**: that

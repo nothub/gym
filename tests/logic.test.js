@@ -610,17 +610,31 @@ Deno.test("the count field is relabelled per strategy", async () => {
 
 /* ---------- AMRAP ---------- */
 
-Deno.test("AMRAP counts down a fixed window and reports rounds by tap", async () => {
-    const { els } = await run({
-        strategy: "amrap",
-        count: 1, // 1 minute window
-        tapAt: [10_000 + 20_000, 10_000 + 45_000],
-    });
+Deno.test("AMRAP counts down a fixed window and reports the window", async () => {
+    const { els } = await run({ strategy: "amrap", count: 1 });
     strictEqual(els.phase.textContent, "Done");
-    strictEqual(els["round-label"].textContent, "2 rounds");
-    // AMRAP's score is the round count, which round-label already carries --
-    // the glyph marks the finish, not a result, so it differs from RFT's.
+    // The window, not a round count: AMRAP scores nothing, so it restates what
+    // the clock delivered, the way Intervals restates its cycles.
+    strictEqual(els["round-label"].textContent, "1 minute");
     strictEqual(els.seconds.textContent, "⚡");
+});
+
+Deno.test("AMRAP never makes the countdown tappable, in any phase", async () => {
+    for (const [label, stopAt] of [["prep", 5_000], ["work", PREP_MS + 5_000], ["done", null]]) {
+        const { els } = await run({ strategy: "amrap", count: 1, stopAt });
+        strictEqual(els.seconds.disabled, true, `amrap ${label}`);
+        strictEqual(els["tap-hint"].hidden, true, `amrap ${label} hint`);
+    }
+});
+
+Deno.test("tapping an AMRAP countdown records nothing", async () => {
+    // Nothing should reach recordTap now that the button is inert, but the
+    // handler is still attached to it, so assert the guard directly rather
+    // than trusting that no path ever fires it.
+    const { els, tap } = await run({ strategy: "amrap", count: 1, stopAt: PREP_MS + 5_000 });
+    tap();
+    tap();
+    strictEqual(els["round-label"].textContent, "\u00a0");
 });
 
 Deno.test("the 15-minute AMRAP preset fills the window, not a round count", async () => {
@@ -648,12 +662,8 @@ Deno.test("the AMRAP window runs exactly as long as it was set", async () => {
 });
 
 Deno.test("AMRAP cues the start and the finish, never an intermediate boundary", async () => {
-    const { beeps } = await run({
-        strategy: "amrap",
-        count: 1,
-        tapAt: [10_000 + 20_000, 10_000 + 40_000, 10_000 + 55_000],
-    });
-    // One "go" at prep's end, no more until the fanfare -- taps must not re-fire it.
+    const { beeps } = await run({ strategy: "amrap", count: 1 });
+    // One "go" at prep's end, then nothing until the fanfare.
     strictEqual(freqs(beeps, 880).length, 1);
     deepStrictEqual(
         beeps.filter((b) => [523, 659, 784].includes(b.freq)).map((b) => b.freq),
@@ -667,62 +677,12 @@ Deno.test("AMRAP ticks the last three seconds of the window", async () => {
     strictEqual(freqs(beeps, 660).length, 6);
 });
 
-Deno.test("a tap while paused does not count", async () => {
-    const { els, tap } = await run({
-        strategy: "amrap",
-        count: 5,
-        stopAt: 10_000 + 5_000,
-    });
-    els.pause.fire("click");
-    tap();
-    tap();
-    els.pause.fire("click");
-    // The live round-label reflects taps taken only while running.
-    strictEqual(els["round-label"].textContent, "Round 0");
-});
-
-Deno.test("a tap during prep does not bank a round", async () => {
-    // The tap target is the whole countdown, which is on screen through prep
-    // too -- an eager finger there used to bank a round that appeared the
-    // instant the window opened.
-    const { els } = await run({ strategy: "amrap", count: 1, tapAt: [5_000] });
-    strictEqual(els["round-label"].textContent, "0 rounds");
-});
-
-Deno.test("the tap target is live only while a round can be recorded", async () => {
-    const prep = await run({ strategy: "amrap", count: 1, stopAt: 5_000 });
-    strictEqual(prep.els.seconds.disabled, true);
-
-    const work = await run({ strategy: "amrap", count: 1, stopAt: 10_000 + 5_000 });
-    strictEqual(work.els.seconds.disabled, false);
-
-    const done = await run({ strategy: "amrap", count: 1 });
-    strictEqual(done.els.seconds.disabled, true);
-});
-
-Deno.test("the tap hint tracks the target it describes, never contradicting it", async () => {
-    // Reserved, not removed, during prep: see #tap-hint.reserved.
-    const prep = await run({ strategy: "amrap", count: 1, stopAt: 5_000 });
-    strictEqual(prep.els["tap-hint"].hidden, false);
-    strictEqual(prep.els["tap-hint"].className, "reserved");
-
-    const work = await run({ strategy: "amrap", count: 1, stopAt: 10_000 + 5_000 });
-    strictEqual(work.els["tap-hint"].className, "");
-    strictEqual(work.els.seconds.disabled, false);
-
-    // Intervals records nothing, so the line is dropped rather than reserved.
-    const intervals = await run({ count: 1, stopAt: 10_000 + 5_000 });
-    strictEqual(intervals.els["tap-hint"].hidden, true);
-});
-
-Deno.test("the live progress label carries no total for AMRAP", async () => {
-    const { els } = await run({
-        strategy: "amrap",
-        count: 5,
-        tapAt: [10_000 + 5_000],
-        stopAt: 10_000 + 6_000,
-    });
-    strictEqual(els["round-label"].textContent, "Round 1");
+Deno.test("AMRAP shows no progress label while it runs, having nothing to count", async () => {
+    const { els } = await run({ strategy: "amrap", count: 5, stopAt: PREP_MS + 6_000 });
+    // The blank is prep's reserved line kept in place, not an empty string:
+    // collapsible whitespace would lay the paragraph out at zero height and
+    // jog the centred group. See the U+00A0 in render().
+    strictEqual(els["round-label"].textContent, "\u00a0");
 });
 
 /* ---------- RFT ---------- */
@@ -754,6 +714,50 @@ Deno.test("RFT never fires the 3-2-1 tick cue", async () => {
     // Only the prep countdown counts down to anything; nothing counts down
     // within RFT itself, since it has no bound to count down to.
     strictEqual(freqs(beeps, 660).length, 3);
+});
+
+Deno.test("a tap while paused does not count", async () => {
+    const { els, tap } = await run({ strategy: "rft", count: 5, stopAt: PREP_MS + 5_000 });
+    els.pause.fire("click");
+    tap();
+    tap();
+    els.pause.fire("click");
+    strictEqual(els["round-label"].textContent, "Round 0");
+});
+
+Deno.test("a tap during prep does not bank a round", async () => {
+    // The tap target is the whole countdown, on screen through prep too, and
+    // an eager finger there used to bank a round that appeared the instant the
+    // work phase opened.
+    const { els } = await run({ strategy: "rft", count: 3, tapAt: [5_000], stopAt: PREP_MS + 2_000 });
+    strictEqual(els["round-label"].textContent, "Round 0");
+});
+
+Deno.test("the tap target is live only while a round can be recorded", async () => {
+    const prep = await run({ strategy: "rft", count: 3, stopAt: 5_000 });
+    strictEqual(prep.els.seconds.disabled, true);
+
+    const work = await run({ strategy: "rft", count: 3, stopAt: PREP_MS + 5_000 });
+    strictEqual(work.els.seconds.disabled, false);
+
+    const done = await run({ strategy: "rft", count: 1, tapAt: [PREP_MS + 2_000] });
+    strictEqual(done.els.seconds.disabled, true);
+});
+
+Deno.test("only RFT carries the tap hint, and only once tapping does something", async () => {
+    // Reserved, not removed, during prep: see #tap-hint.reserved.
+    const prep = await run({ strategy: "rft", count: 3, stopAt: 5_000 });
+    strictEqual(prep.els["tap-hint"].hidden, false);
+    strictEqual(prep.els["tap-hint"].className, "reserved");
+
+    const work = await run({ strategy: "rft", count: 3, stopAt: PREP_MS + 5_000 });
+    strictEqual(work.els["tap-hint"].className, "");
+
+    // The other two record nothing, so the line leaves the layout entirely.
+    for (const strategy of ["intervals", "amrap"]) {
+        const other = await run({ strategy, count: 5, stopAt: PREP_MS + 5_000 });
+        strictEqual(other.els["tap-hint"].hidden, true, strategy);
+    }
 });
 
 Deno.test("RFT's live display is a clock, counting up past a minute", async () => {

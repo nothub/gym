@@ -387,7 +387,7 @@ test("each alias chip shows its own work/rest under its name", async ({ page }) 
     await expect(page.locator("#detail-tabata")).toHaveText("20/10");
 });
 
-test("AMRAP: the countdown is the tap target and records a round on tap", async ({ page }) => {
+test("AMRAP: the countdown is never a tap target, and reports its window", async ({ page }) => {
     await page.clock.install();
     await page.goto("/");
 
@@ -396,31 +396,27 @@ test("AMRAP: the countdown is the tap target and records a round on tap", async 
     await start(page);
 
     const seconds = page.locator("#seconds");
-    // Prep has no round to record yet, so the target stays inert -- and with
-    // it the ring that marks it, which is drawn off :not(:disabled).
     await expect(seconds).toBeDisabled();
+    await expect(seconds).toHaveAttribute("role", "timer");
+    await expect(page.locator("#tap-hint")).toBeHidden();
 
     await page.clock.runFor(10_000); // clear prep
-    await expect(seconds).toBeEnabled();
-    await expect(seconds).toHaveAttribute("aria-label", "Record round");
-
-    await seconds.click();
-    await seconds.click();
-    // A tap only mutates a counter; the display updates on the next animation
-    // frame, and the installed clock only advances on request.
-    await page.clock.runFor(50);
-    await expect(page.locator("#round-label")).toHaveText("Round 2");
+    // Still inert with the window open: AMRAP's clock ends it either way, so a
+    // tap could only ever have kept score, and that happens in the athlete's
+    // head now.
+    await expect(seconds).toBeDisabled();
+    await expect(page.locator("#round-label")).toHaveText("\u00a0");
 
     await page.clock.fastForward(60_000);
     await expect(page.locator("#phase")).toHaveText("Done");
-    await expect(page.locator("#round-label")).toHaveText("2 rounds");
+    await expect(page.locator("#round-label")).toHaveText("1 minute");
 });
 
 test("the tap hint appears with the target, and costs no layout shift doing it", async ({ page }) => {
     await page.clock.install();
     await page.goto("/");
-    await strategy(page, "amrap");
-    await page.locator("#count").fill("1");
+    await strategy(page, "rft");
+    await page.locator("#count").fill("3");
     await start(page);
     await page.clock.runFor(50);
 

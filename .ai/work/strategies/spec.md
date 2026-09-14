@@ -23,11 +23,12 @@ phase to display either way.
 | Strategy | Clock | Fixed | Scored |
 | --- | --- | --- | --- |
 | Intervals | drives everything | interval cycles | nothing |
-| AMRAP | counts down | the window | rounds, by tap |
+| AMRAP | counts down | the window | nothing |
 | RFT | counts up | rounds | elapsed time |
 
-AMRAP and RFT do not collapse into Intervals. One counts down while the athlete
-taps, the other counts up, and both produce a result rather than a cue.
+AMRAP and RFT do not collapse into Intervals. One counts down over a window the
+athlete works through, the other counts up until the athlete taps it to a stop,
+and both produce a result rather than a cue.
 
 ### Intervals
 
@@ -51,9 +52,13 @@ do not let the label imply the rest.
 
 ### AMRAP
 
-One countdown over the `amrapWindow`. Tap to record a completed round. The
-app counts taps; it has no idea what a round contained and does not need one.
-Ends when the clock runs out. Reports rounds completed.
+One countdown over the `amrapWindow`, and nothing else. Ends when the clock
+runs out, and reports the window it ran.
+
+Round counting was built here first and then removed. The clock ends an AMRAP
+either way, so a tap could only ever have kept score, and an athlete mid-effort
+keeps that score in their head rather than reaching for a phone. RFT is the one
+strategy where a tap decides anything.
 
 ### RFT
 
@@ -76,7 +81,7 @@ Intervals   cycle = work + rest
 
 AMRAP       t >= total -> done
             otherwise  -> work, remaining = total - t
-            round is the tap count, not derived from t
+            no round at all: nothing to derive and nothing to tap
 
 RFT         always counting up, remaining is unbounded
             done when the round count reaches rftRounds
@@ -113,16 +118,17 @@ no hidden-by-default affordance, since the fields default to EMOM's own
 numbers (60/0), which is what keeps the everyday path two taps.
 
 **Timer.** As today: progress label, countdown, phase, controls. The progress
-label reads "Cycle 3 / 12" under Intervals and "Round 7" under AMRAP or RFT,
-because those count different things. In AMRAP and RFT
-the countdown area is the tap target, large because the athlete is breathing
-hard and not aiming carefully.
+label reads "Cycle 3 / 12" under Intervals and "Round 7" under RFT; AMRAP has
+nothing to count while it runs and keeps the line blank rather than collapsing
+it. Under RFT the countdown area is the tap target, large because the athlete is
+breathing hard and not aiming carefully, and labelled "tap to count" because a
+tappable clock readout is not a thing anyone expects.
 
-**Done.** Gains a result for AMRAP and RFT, reusing existing elements rather
-than adding new ones: AMRAP's round count already lives in the progress label,
-so done just stops incrementing it; RFT's elapsed time takes over the digit
-display in place of the finish emoji, since the countdown and the result are
-the same clock. Intervals has nothing to report and keeps today's screen.
+**Done.** Each strategy restates what it delivered, reusing existing elements
+rather than adding new ones: Intervals its cycles, AMRAP its window, RFT the
+rounds it stopped at. RFT's elapsed time takes over the digit display in place
+of the finish emoji, since the countdown and the result are the same clock. The
+phase label reads "Done" in all three.
 
 ## Persistence
 

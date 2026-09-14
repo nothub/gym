@@ -6,10 +6,12 @@ A conditioning timer. Three strategies, one row of chips on the setup screen:
   screen, so there is nothing to configure to hand-type your own; EMOM
   (60/0), E2MOM (120/0) and Tabata (20/10 x8) are presets that fill them in,
   not separate modes -- clicking one never leaves Intervals.
-- **AMRAP** -- a fixed countdown. Tap the big number to record a round; the
-  score is how many you got.
-- **RFT** -- a stopwatch, counting up. Tap to record a round; it ends on the
-  target and reports the time.
+- **AMRAP** -- a fixed countdown, and nothing else. How many rounds you got is
+  yours to remember; the app has no way to know what a round was, so counting
+  them is a job for your head, not a button.
+- **RFT** -- a stopwatch, counting up. Tap the big number to record a round; it
+  ends on the target and reports the time. The only place a tap decides
+  anything, because the round count is what ends it.
 
 Live at <https://nothub.github.io/gym-timer/>.
 

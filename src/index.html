@@ -820,11 +820,14 @@ function deriveIntervals(t, config) {
   return { phase: "rest", round: cycleNum, remaining: cycle - inCycle };
 }
 
-function deriveAmrap(t, taps, config) {
+// No taps: AMRAP's clock ends it either way, so a tap could only ever have kept
+// score, and keeping score of rounds mid-effort is something an athlete does in
+// their head. RFT is the one strategy where a tap decides anything.
+function deriveAmrap(t, config) {
   if (t >= config.amrapWindow) {
-    return { phase: "done", round: taps, remaining: 0 };
+    return { phase: "done", remaining: 0 };
   }
-  return { phase: "work", round: taps, remaining: config.amrapWindow - t };
+  return { phase: "work", remaining: config.amrapWindow - t };
 }
 
 function deriveRft(t, taps, config) {
@@ -840,7 +843,7 @@ function derive(elapsedMs, taps, config) {
     return { phase: "prep", round: 0, remaining: PREP_MS - elapsedMs };
   }
   const t = elapsedMs - PREP_MS;
-  if (config.strategy === "amrap") return deriveAmrap(t, taps, config);
+  if (config.strategy === "amrap") return deriveAmrap(t, config);
   if (config.strategy === "rft") return deriveRft(t, taps, config);
   return deriveIntervals(t, config);
 }
@@ -904,8 +907,13 @@ function render(state, secs, config) {
     el.phase.textContent = "Done";
     el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : doneGlyph(config);
     el.seconds.className = "done";
+    // What was actually done. Intervals and AMRAP restate what was set, since
+    // the clock delivered exactly that; RFT reports the rounds it was told to
+    // stop at, which is the same number by the time it is done.
     el.roundLabel.textContent = config.strategy === "intervals"
       ? plural(config.intervalCycles, "cycle")
+      : config.strategy === "amrap"
+      ? plural(config.amrapWindow / 60000, "minute")
       : plural(state.round, "round");
   } else {
     el.phase.textContent = state.phase === "prep" ? "Get ready"
@@ -916,7 +924,9 @@ function render(state, secs, config) {
     // whitespace, so the paragraph would lay out at zero height and the whole
     // centred timer group would jump the moment prep ends and a real label
     // arrives.
-    el.roundLabel.textContent = state.phase === "prep" ? "\u00a0"
+    // AMRAP has nothing to count while it runs -- the clock is the whole
+    // display -- so it keeps prep's blank line rather than collapsing it.
+    el.roundLabel.textContent = state.phase === "prep" || config.strategy === "amrap" ? "\u00a0"
       : config.strategy === "intervals" ? `Cycle ${state.round} / ${config.intervalCycles}`
       : `Round ${state.round}`;
   }
@@ -924,7 +934,7 @@ function render(state, secs, config) {
   // Live only while there is a round to record. Prep has none yet and done has
   // no more, and the ring marking the target is drawn off :not(:disabled) --
   // so this is also what keeps that ring off a screen that cannot be tapped.
-  const counts = config.strategy === "amrap" || config.strategy === "rft";
+  const counts = config.strategy === "rft";
   const live = counts && state.phase === "work";
   el.seconds.disabled = !live;
   // One source for both, so the hint cannot promise a tap the target refuses.
@@ -1004,10 +1014,10 @@ function start(config) {
   el.pause.textContent = "Pause";
   el.reset.textContent = "Reset";
 
-  // Only AMRAP and RFT have a round to record. role="timer" is dropped when
-  // tappable so a screen reader announces it as a button rather than a
-  // passive live region, which is what "tap to record a round" needs.
-  const tappable = config.strategy === "amrap" || config.strategy === "rft";
+  // RFT alone has a round to record. role="timer" is dropped when tappable so
+  // a screen reader announces it as a button rather than a passive live
+  // region, which is what "tap to record a round" needs.
+  const tappable = config.strategy === "rft";
   // Every workout opens in prep, where there is no round to record yet, so the
   // target starts off and render() turns it on at the first work frame.
   el.seconds.disabled = true;
@@ -1026,7 +1036,9 @@ function start(config) {
 }
 
 function recordTap() {
-  if (clock.config.strategy !== "amrap" && clock.config.strategy !== "rft") return;
+  // RFT alone: its round count is the finish condition, so a tap is the only
+  // thing that can end it. Nothing else here has a round a tap could record.
+  if (clock.config.strategy !== "rft") return;
   if (clock.pausedAt) return;
   // The button is disabled outside the work phase, so a browser drops these
   // clicks before they arrive. Stated here anyway: "a round exists to record"
