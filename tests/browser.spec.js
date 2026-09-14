@@ -219,6 +219,26 @@ test("switching strategy swaps the preset row and the visible fields", async ({ 
     await expect(page.locator("#count-label")).toHaveText("🔁 Cycles");
 });
 
+test("preset buttons are the same size in every strategy's row", async ({ page }) => {
+    await page.goto("/");
+
+    const box = async (sel) => page.locator(sel).first().boundingBox();
+    const intervalsBtn = await box("#intervals-presets button");
+
+    await strategy(page, "amrap");
+    const amrapBtn = await box("#amrap-presets button");
+    await strategy(page, "rft");
+    const rftBtn = await box("#rft-presets button");
+
+    // Intervals' buttons are two lines (name + work/rest); AMRAP's and RFT's
+    // are one ("10 min"). Without a shared min-height/min-width the row would
+    // resize when switching swapped which button style was showing.
+    for (const btn of [amrapBtn, rftBtn]) {
+        expect(btn.width).toBe(intervalsBtn.width);
+        expect(btn.height).toBe(intervalsBtn.height);
+    }
+});
+
 test("AMRAP and RFT presets fill the single count field", async ({ page }) => {
     await page.goto("/");
 
