@@ -134,7 +134,7 @@ async function run({
             "timer", "phase", "seconds", "round-label",
             "pause", "reset", "live", "strategies",
             "intervals-presets", "amrap-presets", "rft-presets",
-            "cues", "cue-sound", "cue-buzz", "build", "install", "install-sep",
+            "cues", "cue-sound", "cue-buzz", "build", "install", "install-sep", "tap-hint",
         ]
     ) {
         els[id] = makeNumberEl(id);
@@ -663,6 +663,21 @@ Deno.test("the tap target is live only while a round can be recorded", async () 
 
     const done = await run({ strategy: "amrap", count: 1 });
     strictEqual(done.els.seconds.disabled, true);
+});
+
+Deno.test("the tap hint tracks the target it describes, never contradicting it", async () => {
+    // Reserved, not removed, during prep: see #tap-hint.reserved.
+    const prep = await run({ strategy: "amrap", count: 1, stopAt: 5_000 });
+    strictEqual(prep.els["tap-hint"].hidden, false);
+    strictEqual(prep.els["tap-hint"].className, "reserved");
+
+    const work = await run({ strategy: "amrap", count: 1, stopAt: 10_000 + 5_000 });
+    strictEqual(work.els["tap-hint"].className, "");
+    strictEqual(work.els.seconds.disabled, false);
+
+    // Intervals records nothing, so the line is dropped rather than reserved.
+    const intervals = await run({ count: 1, stopAt: 10_000 + 5_000 });
+    strictEqual(intervals.els["tap-hint"].hidden, true);
 });
 
 Deno.test("the live progress label carries no total for AMRAP", async () => {

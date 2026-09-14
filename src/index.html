@@ -328,6 +328,20 @@ input[type="checkbox"] {
   color: var(--dim);
 }
 
+/* A tappable timer readout is unusual enough that the ring alone did not carry
+   it -- this says outright what the ring only implies. */
+#tap-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+
+/* visibility, not display: prep and work differ by whether the target is live,
+   and collapsing the line at the transition would jog the controls underneath
+   it a second into the workout. Intervals never has a round to record, so
+   there the element is dropped from the layout entirely rather than reserved. */
+#tap-hint.reserved { visibility: hidden; }
+
 /* #seconds is a <button>: in AMRAP and RFT it is the tap target, chosen
    because it is the largest thing on screen and the athlete is not aiming
    carefully. Reset to plain text and re-enable pointer affordance only when
@@ -542,6 +556,7 @@ noscript p {
     <p id="round-label">&nbsp;</p>
     <button type="button" id="seconds" role="timer" disabled>10</button>
     <p id="phase">Get ready</p>
+    <p id="tap-hint" class="reserved">tap to count</p>
     <div id="controls">
       <button type="button" id="pause">Pause</button>
       <button type="button" id="reset">Reset</button>
@@ -602,6 +617,7 @@ const el = {
   cueSound: document.getElementById("cue-sound"),
   cueBuzz: document.getElementById("cue-buzz"),
   build: document.getElementById("build"),
+  tapHint: document.getElementById("tap-hint"),
   install: document.getElementById("install"),
   installSep: document.getElementById("install-sep"),
 };
@@ -891,7 +907,11 @@ function render(state, secs, config) {
       : state.phase === "rest" ? "Rest" : "Work";
     el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : String(secs);
     el.seconds.className = tickable(state, config) && secs <= 3 ? "warn" : "";
-    el.roundLabel.textContent = state.phase === "prep" ? " "
+    // U+00A0, matching the markup's &nbsp;. A plain space is collapsible
+    // whitespace, so the paragraph would lay out at zero height and the whole
+    // centred timer group would jump the moment prep ends and a real label
+    // arrives.
+    el.roundLabel.textContent = state.phase === "prep" ? "\u00a0"
       : config.strategy === "intervals" ? `Cycle ${state.round} / ${config.intervalCycles}`
       : `Round ${state.round}`;
   }
@@ -899,9 +919,12 @@ function render(state, secs, config) {
   // Live only while there is a round to record. Prep has none yet and done has
   // no more, and the ring marking the target is drawn off :not(:disabled) --
   // so this is also what keeps that ring off a screen that cannot be tapped.
-  el.seconds.disabled = !(
-    (config.strategy === "amrap" || config.strategy === "rft") && state.phase === "work"
-  );
+  const counts = config.strategy === "amrap" || config.strategy === "rft";
+  const live = counts && state.phase === "work";
+  el.seconds.disabled = !live;
+  // One source for both, so the hint cannot promise a tap the target refuses.
+  el.tapHint.hidden = !counts;
+  el.tapHint.className = live ? "" : "reserved";
 
   // The ticking number is role="timer" so it is not announced every second.
   // Phase and round changes are worth announcing, and only those.

@@ -416,6 +416,26 @@ test("AMRAP: the countdown is the tap target and records a round on tap", async 
     await expect(page.locator("#round-label")).toHaveText("2 rounds");
 });
 
+test("the tap hint appears with the target, and costs no layout shift doing it", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/");
+    await strategy(page, "amrap");
+    await page.locator("#count").fill("1");
+    await start(page);
+    await page.clock.runFor(50);
+
+    const hint = page.locator("#tap-hint");
+    // Space is reserved through prep on purpose: collapsing the line when the
+    // hint arrives would jog the controls a second into the workout.
+    await expect(hint).toBeHidden(); // visibility: hidden reads as hidden here
+    const controlsBefore = (await page.locator("#controls").boundingBox()).y;
+
+    await page.clock.runFor(10_000);
+    await expect(hint).toBeVisible();
+    await expect(hint).toHaveText("tap to count");
+    expect((await page.locator("#controls").boundingBox()).y).toBe(controlsBefore);
+});
+
 test("Intervals: the countdown is not a tap target", async ({ page }) => {
     await page.goto("/");
     await start(page);
