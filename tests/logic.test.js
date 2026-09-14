@@ -646,6 +646,25 @@ Deno.test("a tap while paused does not count", async () => {
     strictEqual(els["round-label"].textContent, "Round 0");
 });
 
+Deno.test("a tap during prep does not bank a round", async () => {
+    // The tap target is the whole countdown, which is on screen through prep
+    // too -- an eager finger there used to bank a round that appeared the
+    // instant the window opened.
+    const { els } = await run({ strategy: "amrap", count: 1, tapAt: [5_000] });
+    strictEqual(els["round-label"].textContent, "0 rounds");
+});
+
+Deno.test("the tap target is live only while a round can be recorded", async () => {
+    const prep = await run({ strategy: "amrap", count: 1, stopAt: 5_000 });
+    strictEqual(prep.els.seconds.disabled, true);
+
+    const work = await run({ strategy: "amrap", count: 1, stopAt: 10_000 + 5_000 });
+    strictEqual(work.els.seconds.disabled, false);
+
+    const done = await run({ strategy: "amrap", count: 1 });
+    strictEqual(done.els.seconds.disabled, true);
+});
+
 Deno.test("the live progress label carries no total for AMRAP", async () => {
     const { els } = await run({
         strategy: "amrap",

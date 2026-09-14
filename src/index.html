@@ -896,6 +896,13 @@ function render(state, secs, config) {
       : `Round ${state.round}`;
   }
 
+  // Live only while there is a round to record. Prep has none yet and done has
+  // no more, and the ring marking the target is drawn off :not(:disabled) --
+  // so this is also what keeps that ring off a screen that cannot be tapped.
+  el.seconds.disabled = !(
+    (config.strategy === "amrap" || config.strategy === "rft") && state.phase === "work"
+  );
+
   // The ticking number is role="timer" so it is not announced every second.
   // Phase and round changes are worth announcing, and only those.
   if (state.phase !== lastPhase || state.round !== lastRound) {
@@ -973,7 +980,9 @@ function start(config) {
   // tappable so a screen reader announces it as a button rather than a
   // passive live region, which is what "tap to record a round" needs.
   const tappable = config.strategy === "amrap" || config.strategy === "rft";
-  el.seconds.disabled = !tappable;
+  // Every workout opens in prep, where there is no round to record yet, so the
+  // target starts off and render() turns it on at the first work frame.
+  el.seconds.disabled = true;
   if (tappable) {
     el.seconds.removeAttribute("role");
     el.seconds.setAttribute("aria-label", "Record round");
@@ -991,6 +1000,11 @@ function start(config) {
 function recordTap() {
   if (clock.config.strategy !== "amrap" && clock.config.strategy !== "rft") return;
   if (clock.pausedAt) return;
+  // The button is disabled outside the work phase, so a browser drops these
+  // clicks before they arrive. Stated here anyway: "a round exists to record"
+  // is the rule, and leaving it implicit in a DOM attribute puts the rule
+  // somewhere the logic cannot be read off.
+  if (derive(elapsed(), clock.taps, clock.config).phase !== "work") return;
   clock.taps += 1;
 }
 

@@ -396,10 +396,14 @@ test("AMRAP: the countdown is the tap target and records a round on tap", async 
     await start(page);
 
     const seconds = page.locator("#seconds");
+    // Prep has no round to record yet, so the target stays inert -- and with
+    // it the ring that marks it, which is drawn off :not(:disabled).
+    await expect(seconds).toBeDisabled();
+
+    await page.clock.runFor(10_000); // clear prep
     await expect(seconds).toBeEnabled();
     await expect(seconds).toHaveAttribute("aria-label", "Record round");
 
-    await page.clock.runFor(10_000); // clear prep
     await seconds.click();
     await seconds.click();
     // A tap only mutates a counter; the display updates on the next animation
