@@ -492,11 +492,11 @@ noscript p {
 
     <div id="interval-fields">
       <div>
-        <label for="work-secs">Work (s)</label>
+        <label for="work-secs">🏋️ Work (s)</label>
         <input id="work-secs" type="number" inputmode="numeric" min="1" max="600" step="1" value="60">
       </div>
       <div>
-        <label for="rest-secs">Rest (s)</label>
+        <label for="rest-secs">😴 Rest (s)</label>
         <input id="rest-secs" type="number" inputmode="numeric" min="0" max="600" step="1" value="0">
       </div>
     </div>
@@ -1008,9 +1008,12 @@ function countKeyFor(strategy) {
   return "cycles";
 }
 
+// Not the strategy's own glyph: the chip above already carries that, and
+// repeating it here says nothing the field does not. Each label names what
+// its own number is instead -- a repeat count, a duration, a target.
 function countLabelFor(strategy) {
-  if (strategy === "amrap") return "⚡ Minutes";
-  if (strategy === "rft") return "🏁 Rounds";
+  if (strategy === "amrap") return "⏱️ Minutes";
+  if (strategy === "rft") return "🎯 Rounds";
   return "🔁 Cycles";
 }
 
