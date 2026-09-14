@@ -156,7 +156,12 @@ fieldset {
   border: 0;
 }
 
-fieldset label {
+/* Scoped to #cues, not a bare "fieldset label": #strategies is a fieldset
+   too, and this flex+gap layout is shaped for a checkbox sitting beside an
+   emoji and a word. It leaked in once already -- text-align: center on
+   #strategies label had no effect while its text was a flex item packed to
+   flex-start here, not text-align's business to move. */
+#cues label {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -165,7 +170,7 @@ fieldset label {
   cursor: pointer;
 }
 
-fieldset label:has(input:disabled) {
+#cues label:has(input:disabled) {
   color: var(--dim);
   cursor: not-allowed;
 }
@@ -183,9 +188,7 @@ input[type="checkbox"] {
 
 #strategies {
   display: flex;
-  /* Overrides the bare fieldset rule's centering: chips start-align like any
-     other row of controls, they do not centre as a block. */
-  justify-content: flex-start;
+  justify-content: center;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin: 0;
@@ -193,6 +196,14 @@ input[type="checkbox"] {
   border: 0;
 }
 
+/* No display declared: a label is inline by default, but as a direct child
+   of #strategies (display: flex) it is automatically blockified as a flex
+   item regardless -- which is what lets min-width and text-align below take
+   effect at all. Losing that blockification is exactly what happened when a
+   generic "fieldset label { display: flex }" rule, meant for #cues, once
+   matched here too: it turned the label into a flex container of its own,
+   and inside that, text-align has no say over where a flex item sits --
+   only justify-content does, which nothing set, so text packed left. */
 #strategies label {
   min-width: 6rem; /* fits "Intervals", the longest of the three -- see AMRAP/RFT */
   text-align: center;
@@ -236,6 +247,7 @@ input[type="checkbox"] {
    show as checked. Plain buttons rather than the radios #strategies uses. */
 .preset-row {
   display: flex;
+  justify-content: center;
   flex-wrap: wrap;
   gap: var(--space-2);
 }

@@ -84,22 +84,46 @@ test("centres the cue checkboxes across the form", async ({ page }) => {
     expect(Math.abs(contentCentre - (form.x + form.width / 2))).toBeLessThan(2);
 });
 
-test("the strategy row and every preset row start at the same left edge", async ({ page }) => {
+test("the strategy row and every preset row centre on the form, like everything else", async ({ page }) => {
     await page.goto("/");
 
-    // #strategies is a <fieldset>, and a bare `fieldset { justify-content:
-    // center }` rule exists for #cues. It has silently reached other
-    // fieldsets before (see git history) whenever a row was narrower than
-    // the form, centering it instead of aligning it with everything above.
-    const rows = [
-        // The chip is the label; the radio itself is visually hidden via
-        // position:absolute and does not sit at the chip's edge.
-        page.locator("#strategies label").first(),
-        page.locator("#intervals-presets button").first(),
-    ];
-    const lefts = await Promise.all(rows.map(async (r) => (await r.boundingBox()).x));
-    for (const x of lefts.slice(1)) {
-        expect(Math.abs(x - lefts[0])).toBeLessThan(2);
+    // #strategies is a block-level <fieldset>: it already spans the form's
+    // full width regardless of how its own children are laid out, so its own
+    // bounding box cannot tell centred chips from chips packed to one side.
+    // The union of the chips themselves is the thing that actually moves.
+    const form = await page.locator("#setup").boundingBox();
+    const formCentre = form.x + form.width / 2;
+
+    for (const sel of ["#strategies label", "#intervals-presets button"]) {
+        const chips = page.locator(sel);
+        const first = await chips.first().boundingBox();
+        const last = await chips.last().boundingBox();
+        const contentCentre = (first.x + last.x + last.width) / 2;
+        expect(Math.abs(contentCentre - formCentre)).toBeLessThan(2);
+    }
+});
+
+test("every strategy chip's label text is centred in its own chip", async ({ page }) => {
+    await page.goto("/");
+
+    // #strategies is a <fieldset>, and a generic "fieldset label { display:
+    // flex }" rule exists for #cues' checkbox+emoji+word layout. It reached
+    // #strategies too, since that is a fieldset as well: the lone text node
+    // became a flex item packed to flex-start, which text-align: center --
+    // meant for a block box, not a flex item's position -- could not fix.
+    for (const value of ["intervals", "amrap", "rft"]) {
+        const chip = page.locator(`input[value="${value}"]`).locator("xpath=..");
+        const box = await chip.boundingBox();
+        const textBox = await chip.evaluate((el) => {
+            const node = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+            const r = document.createRange();
+            r.selectNodeContents(node);
+            const box = r.getBoundingClientRect();
+            return { x: box.x, width: box.width };
+        });
+        const boxCentre = box.x + box.width / 2;
+        const textCentre = textBox.x + textBox.width / 2;
+        expect(Math.abs(textCentre - boxCentre)).toBeLessThan(2);
     }
 });
 
