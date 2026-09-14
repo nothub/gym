@@ -8,7 +8,10 @@
 import { expect, test } from "@playwright/test";
 
 const start = (page) => page.getByRole("button", { name: "Start" }).click();
-const preset = (page, value) => page.locator(`input[name="preset"][value="${value}"]`).check();
+const strategy = (page, value) => page.locator(`input[name="strategy"][value="${value}"]`).check();
+const intervalsPreset = (page, key) => page.locator(`#intervals-presets button[data-intervals-preset="${key}"]`).click();
+const amrapPreset = (page, mins) => page.locator(`#amrap-presets button[data-amrap-preset="${mins}"]`).click();
+const rftPreset = (page, rounds) => page.locator(`#rft-presets button[data-rft-preset="${rounds}"]`).click();
 
 test("centres the setup form instead of sizing it to its contents", async ({ page }) => {
     await page.goto("/");
@@ -36,18 +39,18 @@ test("centres the cue checkboxes across the form", async ({ page }) => {
     expect(Math.abs(contentCentre - (form.x + form.width / 2))).toBeLessThan(2);
 });
 
-test("every preset row starts at the same left edge, however many chips it holds", async ({ page }) => {
+test("the strategy row and every preset row start at the same left edge", async ({ page }) => {
     await page.goto("/");
 
-    // #presets is a <fieldset>, and a bare `fieldset { justify-content:
-    // center }` rule exists for #cues. It silently reached #presets too, and
-    // stayed invisible as long as every wrapped line was near full width --
-    // only the 2-chip AMRAP/RFT line, narrower than the rest, exposed it by
-    // centering on its own row instead of aligning with everything above it.
+    // #strategies is a <fieldset>, and a bare `fieldset { justify-content:
+    // center }` rule exists for #cues. It has silently reached other
+    // fieldsets before (see git history) whenever a row was narrower than
+    // the form, centering it instead of aligning it with everything above.
     const rows = [
-        page.locator('label:has(input[value="emom"])'),
-        page.locator('label:has(input[value="custom"])'),
-        page.locator('label:has(input[value="amrap"])'),
+        // The chip is the label; the radio itself is visually hidden via
+        // position:absolute and does not sit at the chip's edge.
+        page.locator("#strategies label").first(),
+        page.locator("#intervals-presets button").first(),
     ];
     const lefts = await Promise.all(rows.map(async (r) => (await r.boundingBox()).x));
     for (const x of lefts.slice(1)) {
@@ -176,49 +179,73 @@ test("counts a real minute down to the flash at the cycle boundary", async ({ pa
     await expect(page.locator("#round-label")).toHaveText("Cycle 1 / 2");
 });
 
+test("Intervals shows work and rest without needing a preset first", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator('input[name="strategy"][value="intervals"]')).toBeChecked();
+    await expect(page.locator("#interval-fields")).toBeVisible();
+    await expect(page.locator("#work-secs")).toHaveValue("60");
+    await expect(page.locator("#rest-secs")).toHaveValue("0");
+});
+
+test("a preset fills the fields but never switches which strategy is active", async ({ page }) => {
+    await page.goto("/");
+
+    await intervalsPreset(page, "tabata");
+    await expect(page.locator('input[name="strategy"][value="intervals"]')).toBeChecked();
+    await expect(page.locator("#work-secs")).toHaveValue("20");
+    await expect(page.locator("#rest-secs")).toHaveValue("10");
+    await expect(page.locator("#count")).toHaveValue("8");
+});
+
+test("switching strategy swaps the preset row and the visible fields", async ({ page }) => {
+    await page.goto("/");
+
+    await strategy(page, "amrap");
+    await expect(page.locator("#intervals-presets")).toBeHidden();
+    await expect(page.locator("#amrap-presets")).toBeVisible();
+    await expect(page.locator("#interval-fields")).toBeHidden();
+    await expect(page.locator("#count-label")).toHaveText("Minutes");
+
+    await strategy(page, "rft");
+    await expect(page.locator("#amrap-presets")).toBeHidden();
+    await expect(page.locator("#rft-presets")).toBeVisible();
+    await expect(page.locator("#count-label")).toHaveText("Rounds");
+
+    await strategy(page, "intervals");
+    await expect(page.locator("#rft-presets")).toBeHidden();
+    await expect(page.locator("#intervals-presets")).toBeVisible();
+    await expect(page.locator("#interval-fields")).toBeVisible();
+    await expect(page.locator("#count-label")).toHaveText("🔁 Cycles");
+});
+
+test("AMRAP and RFT presets fill the single count field", async ({ page }) => {
+    await page.goto("/");
+
+    await strategy(page, "amrap");
+    await amrapPreset(page, 15);
+    await expect(page.locator("#count")).toHaveValue("15");
+
+    await strategy(page, "rft");
+    await rftPreset(page, 10);
+    await expect(page.locator("#count")).toHaveValue("10");
+});
+
 test("each alias chip shows its own work/rest under its name", async ({ page }) => {
     await page.goto("/");
 
-    // Populated from the same INTERVAL_PRESETS object buildConfig() reads, so
+    // Populated from the same INTERVALS_PRESETS object buildConfig() reads, so
     // the chip cannot claim numbers the preset does not actually use.
     await expect(page.locator("#detail-emom")).toHaveText("60/0");
     await expect(page.locator("#detail-e2mom")).toHaveText("120/0");
     await expect(page.locator("#detail-tabata")).toHaveText("20/10");
 });
 
-test("switching to Tabata reveals nothing extra, but Custom reveals work and rest", async ({ page }) => {
-    await page.goto("/");
-
-    await expect(page.locator("#custom-fields")).toBeHidden();
-    await expect(page.locator("#count-label")).toHaveText("🔁 Cycles");
-
-    await preset(page, "tabata");
-    await expect(page.locator("#custom-fields")).toBeHidden();
-    await expect(page.locator("#count")).toHaveValue("8");
-
-    await preset(page, "custom");
-    await expect(page.locator("#custom-fields")).toBeVisible();
-    await expect(page.locator("#work-secs")).toBeVisible();
-    await expect(page.locator("#rest-secs")).toBeVisible();
-});
-
-test("AMRAP and RFT relabel the count field and hide work/rest", async ({ page }) => {
-    await page.goto("/");
-
-    await preset(page, "amrap");
-    await expect(page.locator("#count-label")).toHaveText("Minutes");
-    await expect(page.locator("#custom-fields")).toBeHidden();
-
-    await preset(page, "rft");
-    await expect(page.locator("#count-label")).toHaveText("Rounds");
-    await expect(page.locator("#custom-fields")).toBeHidden();
-});
-
 test("AMRAP: the countdown is the tap target and records a round on tap", async ({ page }) => {
     await page.clock.install();
     await page.goto("/");
 
-    await preset(page, "amrap");
+    await strategy(page, "amrap");
     await page.locator("#count").fill("1"); // 1-minute window
     await start(page);
 
@@ -249,7 +276,7 @@ test("RFT: the countdown shows elapsed time and ends on the target round", async
     await page.clock.install();
     await page.goto("/");
 
-    await preset(page, "rft");
+    await strategy(page, "rft");
     await page.locator("#count").fill("2");
     await start(page);
 
@@ -340,19 +367,29 @@ test("survives a tracking query string offline", async ({ page, context }) => {
     await context.setOffline(false);
 });
 
-test("preset and count persist without touching the url", async ({ page }) => {
+test("strategy and count persist without touching the url", async ({ page }) => {
     await page.goto("/");
     const url = page.url();
 
-    await preset(page, "e2mom");
+    await strategy(page, "amrap");
     await page.locator("#count").fill("4");
     // Typing used to rewrite the address bar. All state lives in one place now.
     expect(page.url()).toBe(url);
 
     await page.reload();
-    await expect(page.locator('input[name="preset"][value="e2mom"]')).toBeChecked();
+    await expect(page.locator('input[name="strategy"][value="amrap"]')).toBeChecked();
     await expect(page.locator("#count")).toHaveValue("4");
     expect(page.url()).toBe(url);
+});
+
+test("Intervals' own count survives a detour through AMRAP", async ({ page }) => {
+    await page.goto("/");
+
+    await page.locator("#count").fill("7");
+    await strategy(page, "amrap");
+    await strategy(page, "intervals");
+
+    await expect(page.locator("#count")).toHaveValue("7");
 });
 
 test("cue checkboxes toggle independently and survive a reload", async ({ page }) => {

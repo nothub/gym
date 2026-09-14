@@ -12,7 +12,7 @@ const ROOT = new URL("../dist/", import.meta.url);
 const src = Deno.readTextFileSync(new URL("index.html", ROOT));
 const code = src.match(/<script>([\s\S]*?)<\/script>/)[1];
 
-const PRESET_KEYS = ["emom", "e2mom", "tabata", "custom", "amrap", "rft"];
+const STRATEGIES = ["intervals", "amrap", "rft"];
 
 // Two independent checkboxes, so the four cue modes are their combinations.
 // Named here purely to keep the test bodies readable.
@@ -35,15 +35,24 @@ const STEP = 16; // ~60fps, matching requestAnimationFrame
  *
  * `tapAt` schedules clicks on the tap target at given elapsed-ms offsets, for
  * driving AMRAP and RFT the way a finger would.
+ *
+ * Presets are momentary actions, not a persisted selection, so driving one is
+ * separate from choosing the strategy: `strategy` picks the row-1 radio,
+ * `intervalsPreset`/`amrapPreset`/`rftPreset` optionally click a row-2 button
+ * for whichever strategy is active, and `workSecs`/`restSecs`/`count` let a
+ * test type directly into the fields the way editing after a preset would.
  */
 async function run({
     vibrate = true,
     stored = null,
     pick = null,
-    preset = "emom",
-    count = 3,
+    strategy = "intervals",
+    intervalsPreset = null,
+    amrapPreset = null,
+    rftPreset = null,
     workSecs = null,
     restSecs = null,
+    count = 3,
     tapAt = [],
     stopAt = null,
     build = "dev",
@@ -121,40 +130,68 @@ async function run({
     const els = {};
     for (
         const id of [
-            "setup", "count", "count-label", "custom-fields", "work-secs", "rest-secs",
+            "setup", "count", "count-label", "interval-fields", "work-secs", "rest-secs",
             "timer", "phase", "seconds", "round-label",
-            "pause", "reset", "live", "presets", "cues", "cue-sound", "cue-buzz", "build",
+            "pause", "reset", "live", "strategies",
+            "intervals-presets", "amrap-presets", "rft-presets",
+            "cues", "cue-sound", "cue-buzz", "build",
         ]
     ) {
         els[id] = makeNumberEl(id);
     }
-    els.presets.name = "presets";
 
-    // One fake radio per preset, found via document.querySelector the same way
-    // the app finds them -- name/value attribute matching, not an id lookup.
     // Real radio inputs sharing a name are mutually exclusive: setting one
     // checked unchecks its siblings. A plain field on each fake element would
-    // let init()'s "set the restored preset checked" leave the built-in EMOM
-    // default also checked, and .find(r => r.checked) would return whichever
-    // comes first rather than the one actually selected.
-    const presetRadios = PRESET_KEYS.map((value) => {
-        const r = makeEl(`preset-${value}`);
-        r.name = "preset";
+    // let init()'s "set the restored strategy checked" leave the built-in
+    // Intervals default also checked, and .find(r => r.checked) would return
+    // whichever comes first rather than the one actually selected.
+    const strategyRadios = STRATEGIES.map((value) => {
+        const r = makeEl(`strategy-${value}`);
+        r.name = "strategy";
         r.value = value;
-        r._checked = value === "emom";
+        r._checked = value === "intervals";
         return r;
     });
-    for (const r of presetRadios) {
+    for (const r of strategyRadios) {
         Object.defineProperty(r, "checked", {
             get() {
                 return r._checked;
             },
             set(v) {
                 r._checked = v;
-                if (v) presetRadios.forEach((other) => other !== r && (other._checked = false));
+                if (v) strategyRadios.forEach((other) => other !== r && (other._checked = false));
             },
         });
     }
+
+    // Preset buttons: the app finds them via event.target.closest(selector),
+    // walking up from wherever inside the button the click landed. There is
+    // nothing to walk up to here -- the fake target IS the button -- so
+    // closest() just checks whether this element carries that dataset key.
+    const makeButton = (id, datasetKey, datasetValue) => {
+        const b = makeEl(id);
+        b.dataset = { [datasetKey]: String(datasetValue) };
+        // Selectors are kebab-case HTML attributes ("data-intervals-preset");
+        // dataset keys are the camelCase the real DOM's dataset API exposes
+        // ("intervalsPreset"). Match by converting one to the other.
+        b.closest = (sel) => {
+            const m = sel.match(/data-([\w-]+)/);
+            const camel = m?.[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            return camel && camel in b.dataset ? b : null;
+        };
+        return b;
+    };
+    const intervalsButtons = {
+        emom: makeButton("btn-emom", "intervalsPreset", "emom"),
+        e2mom: makeButton("btn-e2mom", "intervalsPreset", "e2mom"),
+        tabata: makeButton("btn-tabata", "intervalsPreset", "tabata"),
+    };
+    const amrapButtons = Object.fromEntries(
+        [10, 15, 20].map((m) => [m, makeButton(`btn-amrap-${m}`, "amrapPreset", m)]),
+    );
+    const rftButtons = Object.fromEntries(
+        [3, 5, 10].map((n) => [n, makeButton(`btn-rft-${n}`, "rftPreset", n)]),
+    );
 
     const bodyClasses = new Set();
     const docHandlers = {};
@@ -168,11 +205,12 @@ async function run({
         },
         getElementById: (id) => els[id],
         querySelector(sel) {
-            if (sel === 'input[name="preset"]:checked') {
-                return presetRadios.find((r) => r.checked) ?? null;
+            const m = sel.match(/input\[name="strategy"\]\[value="([^"]+)"\]/);
+            if (m) return strategyRadios.find((r) => r.value === m[1]) ?? null;
+            if (sel === 'input[name="strategy"]:checked') {
+                return strategyRadios.find((r) => r.checked) ?? null;
             }
-            const m = sel.match(/input\[name="preset"\]\[value="([^"]+)"\]/);
-            return m ? presetRadios.find((r) => r.value === m[1]) ?? null : null;
+            return null;
         },
         body: {
             offsetWidth: 0,
@@ -282,9 +320,9 @@ async function run({
     const keys = Object.keys(sandbox);
     new Function(...keys, code)(...keys.map((k) => sandbox[k]));
 
-    // What init() put in the box, before the run below types over it.
+    // What init() put in the box, before anything below overwrites it.
     const initial = {
-        preset: presetRadios.find((r) => r.checked)?.value,
+        strategy: strategyRadios.find((r) => r.checked)?.value,
         count: els.count.value,
         workSecs: els["work-secs"].value,
         restSecs: els["rest-secs"].value,
@@ -296,29 +334,37 @@ async function run({
         els.cues.fire("change");
     }
 
-    if (preset !== "emom") {
-        const radio = presetRadios.find((r) => r.value === preset);
-        radio.checked = true; // unchecks its siblings via the setter above
-        els.presets.fire("change", { target: radio });
+    if (strategy !== "intervals") {
+        const radio = strategyRadios.find((r) => r.value === strategy);
+        radio.checked = true;
+        els.strategies.fire("change", { target: radio });
     }
 
-    // What selecting the preset filled in, before `count` below overwrites it
-    // with whatever this run asked for.
+    if (intervalsPreset) {
+        els["intervals-presets"].fire("click", { target: intervalsButtons[intervalsPreset] });
+    }
+    if (amrapPreset) {
+        els["amrap-presets"].fire("click", { target: amrapButtons[amrapPreset] });
+    }
+    if (rftPreset) {
+        els["rft-presets"].fire("click", { target: rftButtons[rftPreset] });
+    }
+
+    // What a strategy switch or a preset click left in the fields, before
+    // count/workSecs/restSecs below (which every run applies) overwrite it.
     const seeded = {
         count: els.count.value,
         workSecs: els["work-secs"].value,
         restSecs: els["rest-secs"].value,
     };
 
-    if (preset === "custom") {
-        if (workSecs !== null) {
-            els["work-secs"].valueAsNumber = workSecs;
-            els["work-secs"].fire("input");
-        }
-        if (restSecs !== null) {
-            els["rest-secs"].valueAsNumber = restSecs;
-            els["rest-secs"].fire("input");
-        }
+    if (workSecs !== null) {
+        els["work-secs"].valueAsNumber = workSecs;
+        els["work-secs"].fire("input");
+    }
+    if (restSecs !== null) {
+        els["rest-secs"].valueAsNumber = restSecs;
+        els["rest-secs"].fire("input");
     }
 
     els.count.valueAsNumber = count;
@@ -381,38 +427,41 @@ async function run({
 const freqs = (beeps, hz) => beeps.filter((b) => b.freq === hz);
 
 /* ---------- Intervals: EMOM shape (rest = 0) ---------- */
+// No preset click needed for EMOM: it is Intervals' own static default (60/0),
+// so the strategy opening on it is what keeps the common case two taps.
 
 Deno.test("counts down three ticks before every cycle, prep included", async () => {
-    const { beeps } = await run({ preset: "emom", count: 3 });
+    const { beeps } = await run({ count: 3 });
     // Four countdowns: the prep, then one leading into each of cycles 2, 3 and the end.
     strictEqual(freqs(beeps, 660).length, 12);
 });
 
 Deno.test("marks the top of every cycle exactly once", async () => {
-    const { beeps } = await run({ preset: "emom", count: 3 });
+    const { beeps } = await run({ count: 3 });
     strictEqual(freqs(beeps, 880).length, 3);
 });
 
 Deno.test("cycle boundaries do not drift", async () => {
-    const { beeps } = await run({ preset: "emom", count: 5 });
+    const { beeps } = await run({ count: 5 });
     const starts = freqs(beeps, 880).map((b) => b.t);
     // 10 s of prep, then one cycle per minute, to the millisecond.
     deepStrictEqual(starts, [10_000, 70_000, 130_000, 190_000, 250_000]);
 });
 
 Deno.test("never fires the same tick twice inside one second", async () => {
-    const { beeps } = await run({ preset: "emom", count: 3 });
+    const { beeps } = await run({ count: 3 });
     const ticks = freqs(beeps, 660);
     const tooClose = ticks.filter((b, i) => i > 0 && b.t - ticks[i - 1].t < 900);
     deepStrictEqual(tooClose, []);
 });
 
 Deno.test("ends on an ascending fanfare and settles the screen", async () => {
-    const { beeps, els } = await run({ preset: "emom", count: 3 });
+    const { beeps, els } = await run({ count: 3 });
     deepStrictEqual(
         beeps.filter((b) => [523, 659, 784].includes(b.freq)).map((b) => b.freq),
         [523, 659, 784],
     );
+    strictEqual(els.phase.textContent, "Done");
     strictEqual(els.seconds.textContent, "💪");
     strictEqual(els["round-label"].textContent, "3 cycles");
     strictEqual(els.pause.hidden, true);
@@ -421,7 +470,7 @@ Deno.test("ends on an ascending fanfare and settles the screen", async () => {
 });
 
 Deno.test("a workout runs to the end when audio cannot start", async () => {
-    const { els, beeps, buzzes, flashes } = await run({ preset: "emom", count: 2, audioThrows: true });
+    const { els, beeps, buzzes, flashes } = await run({ count: 2, audioThrows: true });
 
     // The clock is the product; sound is a cue. Losing the cue must not lose
     // the workout, and the visual and haptic cues carry on regardless.
@@ -433,7 +482,7 @@ Deno.test("a workout runs to the end when audio cannot start", async () => {
 });
 
 Deno.test("silent mode drops sound and buzz but keeps the flash", async () => {
-    const { beeps, buzzes, flashes } = await run({ preset: "emom", count: 2, pick: "off" });
+    const { beeps, buzzes, flashes } = await run({ count: 2, pick: "off" });
     deepStrictEqual(beeps, []);
     deepStrictEqual(buzzes, []);
     // One per cycle start, one for the finish.
@@ -441,37 +490,36 @@ Deno.test("silent mode drops sound and buzz but keeps the flash", async () => {
 });
 
 Deno.test("sound and buzz modes are independent", async () => {
-    const sound = await run({ preset: "emom", count: 2, pick: "sound" });
+    const sound = await run({ count: 2, pick: "sound" });
     ok(sound.beeps.length > 0);
     deepStrictEqual(sound.buzzes, []);
 
-    const buzz = await run({ preset: "emom", count: 2, pick: "vibrate" });
+    const buzz = await run({ count: 2, pick: "vibrate" });
     deepStrictEqual(buzz.beeps, []);
     ok(buzz.buzzes.length > 0);
 });
 
-/* ---------- Intervals: rest > 0 (the E2MOM/Tabata/Custom shape) ---------- */
+/* ---------- Intervals: rest > 0, and presets in general ---------- */
 
-Deno.test("Tabata cues both the work-to-rest and rest-to-work transitions", async () => {
-    const { beeps } = await run({ preset: "tabata", count: 2 });
-    // Prep->work, work->rest, rest->work, work->rest, rest->work(would-be cycle 3,
-    // but count=2 stops it): 2 cycles of work+rest is 4 real transitions plus the
-    // initial "go", so 880Hz fires once per phase entry -- 4 for 2 full cycles.
+Deno.test("the Tabata preset fills work, rest and cycles, and cues both directions", async () => {
+    const { beeps } = await run({ intervalsPreset: "tabata", count: 2 });
+    // Prep->work, work->rest, rest->work, work->rest: 2 full cycles is 4
+    // transitions, each cued, plus the initial "go" already counted in that.
     strictEqual(freqs(beeps, 880).length, 4);
 });
 
 Deno.test("Tabata's phase label alternates Work and Rest, never Run", async () => {
-    const { els } = await run({ preset: "tabata", count: 1, stopAt: 10_000 + 15_000 });
+    const { els } = await run({ intervalsPreset: "tabata", count: 1, stopAt: 10_000 + 15_000 });
     // 15 s into a 20/10 cycle: still inside the 20 s work period.
     strictEqual(els.phase.textContent, "Work");
 
-    const rest = await run({ preset: "tabata", count: 1, stopAt: 10_000 + 25_000 });
+    const rest = await run({ intervalsPreset: "tabata", count: 1, stopAt: 10_000 + 25_000 });
     // 25 s in: 20 s of work has elapsed, 5 s into the 10 s rest.
     strictEqual(rest.els.phase.textContent, "Rest");
 });
 
 Deno.test("the countdown into rest gets the same 3-2-1 tick as the countdown into work", async () => {
-    const { beeps } = await run({ preset: "tabata", count: 1 });
+    const { beeps } = await run({ intervalsPreset: "tabata", count: 1 });
     // 20/10, one cycle: every boundary gets a countdown, including the last
     // one, which leads into "done" rather than another phase -- prep->work,
     // work->rest, rest->done. Three windows, three ticks each.
@@ -479,62 +527,68 @@ Deno.test("the countdown into rest gets the same 3-2-1 tick as the countdown int
 });
 
 Deno.test("E2MOM is Intervals(120, 0): the collapse holds at a different work length", async () => {
-    const { beeps } = await run({ preset: "e2mom", count: 2 });
+    const { beeps } = await run({ intervalsPreset: "e2mom", count: 2 });
     const starts = freqs(beeps, 880).map((b) => b.t);
     deepStrictEqual(starts, [10_000, 130_000]);
     // prep->work1, work1->work2 (rest = 0, so no rest phase), work2->done.
     strictEqual(freqs(beeps, 660).length, 9);
 });
 
-Deno.test("Custom reads work and rest from the form, not a canonical preset", async () => {
+Deno.test("typing work and rest directly drives the clock, no preset needed", async () => {
     // 8/8 rather than 5/5: both divide the test's 16 ms step evenly, so the
     // transitions land on exact simulated milliseconds instead of a few
     // milliseconds late -- a step-size artifact, not a claim about derive().
-    const { beeps } = await run({ preset: "custom", count: 2, workSecs: 8, restSecs: 8 });
+    const { beeps } = await run({ workSecs: 8, restSecs: 8, count: 2 });
     const starts = freqs(beeps, 880).map((b) => b.t);
     // Work and rest both cue: two cycles of work+rest is four entries.
     deepStrictEqual(starts, [10_000, 18_000, 26_000, 34_000]);
 });
 
-/* ---------- Presets: what selecting one fills into the form ---------- */
-
-Deno.test("every named preset seeds its canonical work, rest and cycle count", async () => {
+Deno.test("every Intervals preset seeds its canonical work, rest and cycle count", async () => {
     const canonical = {
         emom: { count: "10", workSecs: "60", restSecs: "0" },
         e2mom: { count: "6", workSecs: "120", restSecs: "0" },
         tabata: { count: "8", workSecs: "20", restSecs: "10" },
     };
     for (const [preset, want] of Object.entries(canonical)) {
-        const { seeded } = await run({ preset, count: 1, stopAt: 0 });
+        const { seeded } = await run({ intervalsPreset: preset, count: 1, stopAt: 0 });
         deepStrictEqual(seeded, want, preset);
     }
 });
 
-Deno.test("Custom reveals the work/rest fields; named presets and AMRAP/RFT hide them", async () => {
-    for (const preset of ["emom", "e2mom", "tabata", "amrap", "rft"]) {
-        const { els } = await run({ preset, count: 1, stopAt: 0 });
-        strictEqual(els["custom-fields"].hidden, true, preset);
+Deno.test("work and rest are never hidden: Intervals shows them without a preset", async () => {
+    const { els } = await run({ count: 1, stopAt: 0 });
+    strictEqual(els["interval-fields"].hidden, false);
+});
+
+Deno.test("AMRAP and RFT hide the work/rest fields; Intervals shows its own presets only", async () => {
+    for (const strategy of ["amrap", "rft"]) {
+        const { els } = await run({ strategy, count: 1, stopAt: 0 });
+        strictEqual(els["interval-fields"].hidden, true, strategy);
+        strictEqual(els["intervals-presets"].hidden, true, strategy);
     }
-    const { els } = await run({ preset: "custom", count: 1, stopAt: 0 });
-    strictEqual(els["custom-fields"].hidden, false);
+    const { els } = await run({ count: 1, stopAt: 0 });
+    strictEqual(els["intervals-presets"].hidden, false);
+    strictEqual(els["amrap-presets"].hidden, true);
+    strictEqual(els["rft-presets"].hidden, true);
 });
 
 Deno.test("the count field is relabelled per strategy", async () => {
-    const labels = {
-        emom: "🔁 Cycles", e2mom: "🔁 Cycles", tabata: "🔁 Cycles", custom: "🔁 Cycles",
-        amrap: "Minutes", rft: "Rounds",
-    };
-    for (const [preset, label] of Object.entries(labels)) {
-        const { els } = await run({ preset, count: 1, stopAt: 0 });
-        strictEqual(els["count-label"].textContent, label, preset);
-    }
+    const { els: intervals } = await run({ count: 1, stopAt: 0 });
+    strictEqual(intervals["count-label"].textContent, "🔁 Cycles");
+
+    const { els: amrap } = await run({ strategy: "amrap", count: 1, stopAt: 0 });
+    strictEqual(amrap["count-label"].textContent, "Minutes");
+
+    const { els: rft } = await run({ strategy: "rft", count: 1, stopAt: 0 });
+    strictEqual(rft["count-label"].textContent, "Rounds");
 });
 
 /* ---------- AMRAP ---------- */
 
 Deno.test("AMRAP counts down a fixed window and reports rounds by tap", async () => {
     const { els } = await run({
-        preset: "amrap",
+        strategy: "amrap",
         count: 1, // 1 minute window
         tapAt: [10_000 + 20_000, 10_000 + 45_000],
     });
@@ -545,9 +599,14 @@ Deno.test("AMRAP counts down a fixed window and reports rounds by tap", async ()
     strictEqual(els.seconds.textContent, "⚡");
 });
 
+Deno.test("the 15-minute AMRAP preset fills the window, not a round count", async () => {
+    const { seeded } = await run({ strategy: "amrap", amrapPreset: 15, count: 1, stopAt: 0 });
+    strictEqual(seeded.count, "15");
+});
+
 Deno.test("AMRAP cues the start and the finish, never an intermediate boundary", async () => {
     const { beeps } = await run({
-        preset: "amrap",
+        strategy: "amrap",
         count: 1,
         tapAt: [10_000 + 20_000, 10_000 + 40_000, 10_000 + 55_000],
     });
@@ -560,14 +619,14 @@ Deno.test("AMRAP cues the start and the finish, never an intermediate boundary",
 });
 
 Deno.test("AMRAP ticks the last three seconds of the window", async () => {
-    const { beeps } = await run({ preset: "amrap", count: 1 });
+    const { beeps } = await run({ strategy: "amrap", count: 1 });
     // Prep's countdown, plus the window's own final three seconds.
     strictEqual(freqs(beeps, 660).length, 6);
 });
 
 Deno.test("a tap while paused does not count", async () => {
     const { els, tap } = await run({
-        preset: "amrap",
+        strategy: "amrap",
         count: 5,
         stopAt: 10_000 + 5_000,
     });
@@ -581,7 +640,7 @@ Deno.test("a tap while paused does not count", async () => {
 
 Deno.test("the live progress label carries no total for AMRAP", async () => {
     const { els } = await run({
-        preset: "amrap",
+        strategy: "amrap",
         count: 5,
         tapAt: [10_000 + 5_000],
         stopAt: 10_000 + 6_000,
@@ -593,7 +652,7 @@ Deno.test("the live progress label carries no total for AMRAP", async () => {
 
 Deno.test("RFT counts up and ends on the target tap, not on elapsed time", async () => {
     const { els } = await run({
-        preset: "rft",
+        strategy: "rft",
         count: 3,
         tapAt: [10_000 + 5_000, 10_000 + 12_000, 10_000 + 20_000],
     });
@@ -604,9 +663,14 @@ Deno.test("RFT counts up and ends on the target tap, not on elapsed time", async
     strictEqual(els["round-label"].textContent, "3 rounds");
 });
 
+Deno.test("the 10-round RFT preset fills the target, not a duration", async () => {
+    const { seeded } = await run({ strategy: "rft", rftPreset: 10, count: 1, stopAt: 0 });
+    strictEqual(seeded.count, "10");
+});
+
 Deno.test("RFT never fires the 3-2-1 tick cue", async () => {
     const { beeps } = await run({
-        preset: "rft",
+        strategy: "rft",
         count: 1,
         tapAt: [10_000 + 3_000],
     });
@@ -617,7 +681,7 @@ Deno.test("RFT never fires the 3-2-1 tick cue", async () => {
 
 Deno.test("RFT's live display is a clock, counting up past a minute", async () => {
     const { els } = await run({
-        preset: "rft",
+        strategy: "rft",
         count: 5,
         stopAt: 10_000 + 65_000,
     });
@@ -626,7 +690,7 @@ Deno.test("RFT's live display is a clock, counting up past a minute", async () =
 
 Deno.test("RFT does not finish just because time passed", async () => {
     const { els } = await run({
-        preset: "rft",
+        strategy: "rft",
         count: 3,
         tapAt: [10_000 + 5_000], // only one of the three taps needed
         stopAt: 10_000 + 120_000,
@@ -637,32 +701,50 @@ Deno.test("RFT does not finish just because time passed", async () => {
 
 /* ---------- Persistence ---------- */
 
-Deno.test("preset, count, and custom work/rest are restored from storage", async () => {
-    const stored = { preset: "custom", count: 7, workSecs: 33, restSecs: 11 };
-    const { initial } = await run({ preset: "custom", stored, stopAt: 0 });
-    strictEqual(initial.preset, "custom");
+Deno.test("strategy, cycles and custom work/rest are restored from storage", async () => {
+    const stored = { strategy: "intervals", cycles: 7, workSecs: 33, restSecs: 11 };
+    const { initial } = await run({ stored, stopAt: 0 });
+    strictEqual(initial.strategy, "intervals");
     strictEqual(initial.count, "7");
     strictEqual(initial.workSecs, "33");
     strictEqual(initial.restSecs, "11");
 });
 
-Deno.test("an unknown stored preset falls back to EMOM", async () => {
-    const { initial } = await run({ preset: "emom", stored: { preset: "nonsense" }, stopAt: 0 });
-    strictEqual(initial.preset, "emom");
+Deno.test("each strategy remembers its own count independently", async () => {
+    const stored = { strategy: "rft", cycles: 9, amrapMinutes: 17, rftRounds: 4 };
+    const { initial } = await run({ strategy: "rft", stored, stopAt: 0 });
+    // Restored as RFT (4 rounds), not Intervals' 9 cycles or AMRAP's 17 minutes
+    // -- switching strategy later would read each of those back independently.
+    strictEqual(initial.strategy, "rft");
+    strictEqual(initial.count, "4");
 });
 
-Deno.test("an unusable stored count falls back to the preset's canonical default", async () => {
+Deno.test("switching strategy loads that strategy's own stored count, not the last one shown", async () => {
+    const stored = { strategy: "intervals", cycles: 9, amrapMinutes: 17 };
+    // seeded, not els.count.value: run() always types its own count (1) into
+    // the field afterward, same as a user editing post-switch would. What is
+    // under test is what the switch itself loaded, before that edit lands.
+    const { seeded } = await run({ stored, strategy: "amrap", count: 1, stopAt: 0 });
+    strictEqual(seeded.count, "17");
+});
+
+Deno.test("an unknown stored strategy falls back to Intervals", async () => {
+    const { initial } = await run({ stored: { strategy: "nonsense" }, stopAt: 0 });
+    strictEqual(initial.strategy, "intervals");
+});
+
+Deno.test("an unusable stored count falls back to the strategy's default", async () => {
     for (const bad of [500, 0, -3, 1.5, "abc", null]) {
-        const { initial } = await run({ preset: "tabata", stored: { preset: "tabata", count: bad }, stopAt: 0 });
-        strictEqual(initial.count, "8", `count: ${JSON.stringify(bad)}`);
+        const { initial } = await run({ stored: { strategy: "intervals", cycles: bad }, stopAt: 0 });
+        strictEqual(initial.count, "10", `cycles: ${JSON.stringify(bad)}`);
     }
 });
 
-Deno.test("selecting a preset persists it alongside the cue choices", async () => {
-    const { store } = await run({ preset: "rft", count: 4, pick: "sound" });
+Deno.test("typing a count persists it under the active strategy's own key", async () => {
+    const { store } = await run({ strategy: "rft", count: 4, pick: "sound" });
     const saved = JSON.parse(store.get("emom"));
-    strictEqual(saved.preset, "rft");
-    strictEqual(saved.count, 4);
+    strictEqual(saved.strategy, "rft");
+    strictEqual(saved.rftRounds, 4);
     strictEqual(saved.sound, true);
     strictEqual(saved.buzz, false);
 });
@@ -670,7 +752,7 @@ Deno.test("selecting a preset persists it alongside the cue choices", async () =
 /* ---------- Cues on/off, unrelated to strategy ---------- */
 
 Deno.test("both cues are on by default", async () => {
-    const { els } = await run({ preset: "emom", count: 1 });
+    const { els } = await run({ count: 1 });
     strictEqual(els["cue-sound"].checked, true);
     strictEqual(els["cue-buzz"].checked, true);
     strictEqual(els["cue-buzz"].disabled, false);
@@ -678,7 +760,6 @@ Deno.test("both cues are on by default", async () => {
 
 Deno.test("without a Vibration API the buzz box is off and disabled", async () => {
     const { els, buzzes, beeps } = await run({
-        preset: "emom",
         count: 1,
         vibrate: false,
         stored: { sound: true, buzz: true },
@@ -692,7 +773,7 @@ Deno.test("without a Vibration API the buzz box is off and disabled", async () =
 
 Deno.test("each checkbox is restored from storage independently", async () => {
     for (const [mode, want] of Object.entries(CUE_STATES)) {
-        const { els } = await run({ preset: "emom", count: 1, stored: want });
+        const { els } = await run({ count: 1, stored: want });
         strictEqual(els["cue-sound"].checked, want.sound, `${mode} sound`);
         strictEqual(els["cue-buzz"].checked, want.buzz, `${mode} buzz`);
     }
@@ -701,7 +782,7 @@ Deno.test("each checkbox is restored from storage independently", async () => {
 /* ---------- Build id in the footer ---------- */
 
 Deno.test("shows the build id in the footer when there is one", async () => {
-    const { els } = await run({ preset: "emom", count: 1, build: "4094c69" });
+    const { els } = await run({ count: 1, build: "4094c69" });
     strictEqual(els.build.textContent, "4094c69");
     strictEqual(els.build.href, "https://github.com/nothub/gym-timer/commit/4094c69");
 });
@@ -709,7 +790,7 @@ Deno.test("shows the build id in the footer when there is one", async () => {
 Deno.test("leaves the footer fallback alone for an unbuilt copy", async () => {
     // The markup already says "dev" pointing at the commit list; overwriting it
     // with the literal placeholder would be worse than leaving it.
-    const { els } = await run({ preset: "emom", count: 1, build: "dev" });
+    const { els } = await run({ count: 1, build: "dev" });
     strictEqual(els.build.textContent, "");
     strictEqual(els.build.href, undefined);
 });
@@ -717,12 +798,12 @@ Deno.test("leaves the footer fallback alone for an unbuilt copy", async () => {
 /* ---------- Screen wake lock and the paused pulse ---------- */
 
 Deno.test("holds the screen awake for the workout and releases it at the end", async () => {
-    const { wakeLog } = await run({ preset: "emom", count: 1 });
+    const { wakeLog } = await run({ count: 1 });
     deepStrictEqual(wakeLog, ["acquire", "release"]);
 });
 
 Deno.test("does not release a sentinel the browser already dropped", async () => {
-    const mid = await run({ preset: "emom", count: 5, stopAt: 40_000 });
+    const mid = await run({ count: 5, stopAt: 40_000 });
     strictEqual(mid.wakeLog.filter((x) => x === "release").length, 0);
 
     await mid.browserDropsLock();
@@ -734,7 +815,7 @@ Deno.test("does not release a sentinel the browser already dropped", async () =>
 });
 
 Deno.test("freezes the pulse while paused", async () => {
-    const mid = await run({ preset: "emom", count: 5, stopAt: 40_000 });
+    const mid = await run({ count: 5, stopAt: 40_000 });
     strictEqual(mid.bodyHasClass("paused"), false);
 
     mid.els.pause.fire("click");
@@ -751,7 +832,7 @@ Deno.test("freezes the pulse while paused", async () => {
 });
 
 Deno.test("re-acquires the screen lock the browser dropped while backgrounded", async () => {
-    const mid = await run({ preset: "emom", count: 5, stopAt: 40_000 });
+    const mid = await run({ count: 5, stopAt: 40_000 });
     deepStrictEqual(mid.wakeLog, ["acquire"]);
 
     await mid.setVisibility("hidden");

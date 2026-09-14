@@ -101,10 +101,16 @@ mark it, a full-screen flash at the same moment, optional buzz.
 
 ## Screens
 
-**Setup.** Opens on the EMOM preset showing a cycle count, as today. The preset
-buttons are the primary interface; `work` and `rest` are revealed behind a
-Custom affordance rather than shown by default. Four visible controls where
-there is one today would be a regression for the case used daily.
+**Setup.** Two tiers. Row one is the strategy itself -- Intervals, AMRAP, RFT --
+exactly one active, and it decides which fields show below. Row two is
+presets for whichever strategy is active: EMOM, E2MOM and Tabata for
+Intervals; a handful of durations for AMRAP; a handful of round targets for
+RFT. A preset is a momentary action, not a fourth kind of state -- it fills in
+the fields belonging to the strategy already selected and leaves no ongoing
+"this preset is current" to track, so a preset click never switches which
+strategy is active. Intervals' work and rest are always on screen; there is
+no hidden-by-default affordance, since the fields default to EMOM's own
+numbers (60/0), which is what keeps the everyday path two taps.
 
 **Timer.** As today: progress label, countdown, phase, controls. The progress
 label reads "Cycle 3 / 12" under Intervals and "Round 7" under AMRAP or RFT,
@@ -120,8 +126,10 @@ the same clock. Intervals has nothing to report and keeps today's screen.
 
 ## Persistence
 
-One `localStorage` entry, as now. Gains the selected strategy and the preset or
-custom work/rest values. Nothing else changes.
+One `localStorage` entry, as now. Each strategy remembers its own count under
+its own key (`cycles`, `amrapMinutes`, `rftRounds`) rather than sharing one --
+a detour through AMRAP must not overwrite what Intervals had. Intervals' work
+and rest persist alongside, since they are its own fields, not a preset's.
 
 ## What this app is not
 

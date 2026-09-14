@@ -156,27 +156,56 @@ input[type="checkbox"] {
    inside its label, so a click anywhere on the chip and a screen reader both
    reach the same control -- no id/for pairing to keep in sync. */
 
-#presets {
+#strategies {
   display: flex;
-  /* Overrides the bare fieldset rule's centering: a short line of chips (the
-     2-item AMRAP/RFT group) must start-align like every other line, not
-     centre on its own. Invisible while every group was ~full width; the
-     narrower group made it visible. */
+  /* Overrides the bare fieldset rule's centering: chips start-align like any
+     other row of controls, they do not centre as a block. */
   justify-content: flex-start;
   flex-wrap: wrap;
-  gap: var(--space-4); /* wider than a group's own gap: the space is the divider */
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   border: 0;
 }
 
-.preset-group {
+#strategies label {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--dim);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+#strategies input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+#strategies label:has(input:checked) {
+  color: var(--bg);
+  background: var(--acc);
+  border-color: var(--acc);
+}
+
+#strategies label:has(input:focus-visible) {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+/* Presets are momentary actions -- "fill these fields in" -- not a selection
+   that persists: editing a field afterward leaves no preset "current" to
+   show as checked. Plain buttons rather than the radios #strategies uses. */
+.preset-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-#presets label {
+.preset-row button {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -191,33 +220,18 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
-/* Work/rest in seconds, under the name, on the three fixed-number aliases
-   only -- AMRAP, RFT and Custom have no canonical pair to show. */
+.preset-row button:hover { border-color: var(--dim); }
+.preset-row button:active { transform: scale(0.97); }
+
+/* Work/rest in seconds, under the name -- only Intervals' three presets have
+   a canonical pair to show. */
 .preset-detail {
   font-size: 0.7em;
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
 }
 
-#presets input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-#presets label:has(input:checked) {
-  color: var(--bg);
-  background: var(--acc);
-  border-color: var(--acc);
-}
-
-#presets label:has(input:focus-visible) {
-  outline: 2px solid var(--acc);
-  outline-offset: 2px;
-}
-
-#custom-fields {
+#interval-fields {
   display: flex;
   gap: var(--space-4);
 }
@@ -370,49 +384,54 @@ noscript p {
   <form id="setup">
     <h1>Timer</h1>
 
-    <fieldset id="presets">
+    <fieldset id="strategies">
       <legend class="sr-only">Strategy</legend>
-      <!-- Grouped by strategy, not by chip. EMOM, E2MOM and Tabata are named
-           aliases for Intervals(work, rest); Custom is the same strategy with
-           work/rest read from the form instead of a canonical pair, so it
-           belongs here too, last, as the group's escape hatch. AMRAP and RFT
-           are genuinely different strategies and sit apart from all four. -->
-      <div class="preset-group">
-        <label>
-          <input type="radio" name="preset" value="emom" checked> EMOM
-          <span class="preset-detail" id="detail-emom"></span>
-        </label>
-        <label>
-          <input type="radio" name="preset" value="e2mom"> E2MOM
-          <span class="preset-detail" id="detail-e2mom"></span>
-        </label>
-        <label>
-          <input type="radio" name="preset" value="tabata"> Tabata
-          <span class="preset-detail" id="detail-tabata"></span>
-        </label>
-        <label><input type="radio" name="preset" value="custom"> Custom</label>
-      </div>
-      <div class="preset-group">
-        <label><input type="radio" name="preset" value="amrap"> AMRAP</label>
-        <label><input type="radio" name="preset" value="rft"> RFT</label>
-      </div>
+      <label><input type="radio" name="strategy" value="intervals" checked> Intervals</label>
+      <label><input type="radio" name="strategy" value="amrap"> AMRAP</label>
+      <label><input type="radio" name="strategy" value="rft"> RFT</label>
     </fieldset>
+
+    <!-- One row per strategy, swapped by strategy rather than removed: a
+         click fills the fields below with that preset's numbers and stays on
+         whichever strategy is already active -- EMOM does not open a
+         different screen, it fills in Intervals'. -->
+    <div class="preset-row" id="intervals-presets" role="group" aria-label="Intervals presets">
+      <button type="button" data-intervals-preset="emom">
+        EMOM<span class="preset-detail" id="detail-emom"></span>
+      </button>
+      <button type="button" data-intervals-preset="e2mom">
+        E2MOM<span class="preset-detail" id="detail-e2mom"></span>
+      </button>
+      <button type="button" data-intervals-preset="tabata">
+        Tabata<span class="preset-detail" id="detail-tabata"></span>
+      </button>
+    </div>
+    <div class="preset-row" id="amrap-presets" role="group" aria-label="AMRAP presets" hidden>
+      <button type="button" data-amrap-preset="10">10 min</button>
+      <button type="button" data-amrap-preset="15">15 min</button>
+      <button type="button" data-amrap-preset="20">20 min</button>
+    </div>
+    <div class="preset-row" id="rft-presets" role="group" aria-label="RFT presets" hidden>
+      <button type="button" data-rft-preset="3">3 rounds</button>
+      <button type="button" data-rft-preset="5">5 rounds</button>
+      <button type="button" data-rft-preset="10">10 rounds</button>
+    </div>
+
+    <div id="interval-fields">
+      <div>
+        <label for="work-secs">Work (s)</label>
+        <input id="work-secs" type="number" inputmode="numeric" min="1" max="600" step="1" value="60">
+      </div>
+      <div>
+        <label for="rest-secs">Rest (s)</label>
+        <input id="rest-secs" type="number" inputmode="numeric" min="0" max="600" step="1" value="0">
+      </div>
+    </div>
 
     <div>
       <label for="count" id="count-label">Cycles</label>
       <input id="count" name="count" type="number" inputmode="numeric"
              min="1" max="99" step="1" value="10" required>
-    </div>
-
-    <div id="custom-fields" hidden>
-      <div>
-        <label for="work-secs">Work (s)</label>
-        <input id="work-secs" type="number" inputmode="numeric" min="1" max="600" step="1" value="40">
-      </div>
-      <div>
-        <label for="rest-secs">Rest (s)</label>
-        <input id="rest-secs" type="number" inputmode="numeric" min="0" max="600" step="1" value="20">
-      </div>
     </div>
 
     <fieldset id="cues">
@@ -466,10 +485,13 @@ const PREP_MS = 10000;
 
 const el = {
   setup: document.getElementById("setup"),
-  presets: document.getElementById("presets"),
+  strategies: document.getElementById("strategies"),
+  intervalsPresets: document.getElementById("intervals-presets"),
+  amrapPresets: document.getElementById("amrap-presets"),
+  rftPresets: document.getElementById("rft-presets"),
   count: document.getElementById("count"),
   countLabel: document.getElementById("count-label"),
-  customFields: document.getElementById("custom-fields"),
+  intervalFields: document.getElementById("interval-fields"),
   workSecs: document.getElementById("work-secs"),
   restSecs: document.getElementById("rest-secs"),
   timer: document.getElementById("timer"),
@@ -486,23 +508,30 @@ const el = {
 };
 
 /* ---------- strategies ---------- */
-// A named Intervals preset fixes work, rest and a canonical cycle count.
-// "Custom" is Intervals with work/rest read from the form instead. AMRAP and
-// RFT have no work/rest -- the single count field means something different
-// for each, which is why it carries a preset-specific label (see countLabelFor).
-const INTERVAL_PRESETS = {
+// Three strategies, one radio each. A preset is not a fourth kind of state:
+// it is a button that fills in the fields belonging to whichever strategy is
+// already active, and nothing remembers that it was clicked -- editing a
+// field afterward leaves no preset "current" to reflect. Work/rest are always
+// on screen for Intervals; there is no separate "Custom" to hide them behind.
+const STRATEGIES = ["intervals", "amrap", "rft"];
+
+const INTERVALS_PRESETS = {
   emom: { work: 60, rest: 0, cycles: 10 },
   e2mom: { work: 120, rest: 0, cycles: 6 },
   // Timing convention only, not the 1996 protocol: see .ai/work/strategies/spec.md.
   tabata: { work: 20, rest: 10, cycles: 8 },
 };
-const DEFAULT_COUNT = { custom: 10, amrap: 12, rft: 5 };
-const PRESET_KEYS = ["emom", "e2mom", "tabata", "custom", "amrap", "rft"];
+// Minutes and rounds respectively -- durations and round counts with no
+// exercise content behind them, since the app never knows what one contains.
+const AMRAP_PRESETS = [10, 15, 20];
+const RFT_PRESETS = [3, 5, 10];
+
+const DEFAULT_COUNT = { intervals: 10, amrap: 12, rft: 5 };
 
 // The work/rest shown under each alias's name comes from the same object the
 // clock reads, not a second copy in the markup -- so the chip cannot end up
 // claiming numbers the preset no longer uses.
-for (const [key, p] of Object.entries(INTERVAL_PRESETS)) {
+for (const [key, p] of Object.entries(INTERVALS_PRESETS)) {
   const detail = document.getElementById(`detail-${key}`);
   if (detail) detail.textContent = `${p.work}/${p.rest}`;
 }
@@ -893,38 +922,55 @@ function toSetup() {
 
 /* ---------- setup form ---------- */
 
-function currentPreset() {
-  return document.querySelector('input[name="preset"]:checked').value;
+function currentStrategy() {
+  return document.querySelector('input[name="strategy"]:checked').value;
 }
 
-function countLabelFor(preset) {
-  if (preset === "amrap") return "Minutes";
-  if (preset === "rft") return "Rounds";
+// The count field means a different thing per strategy, and each strategy
+// remembers its own value independently -- switching to AMRAP and back must
+// not lose Intervals' cycle count, so each gets its own storage key.
+function countKeyFor(strategy) {
+  if (strategy === "amrap") return "amrapMinutes";
+  if (strategy === "rft") return "rftRounds";
+  return "cycles";
+}
+
+function countLabelFor(strategy) {
+  if (strategy === "amrap") return "Minutes";
+  if (strategy === "rft") return "Rounds";
   return "🔁 Cycles";
 }
 
+function showStrategy(strategy) {
+  el.intervalFields.hidden = strategy !== "intervals";
+  el.intervalsPresets.hidden = strategy !== "intervals";
+  el.amrapPresets.hidden = strategy !== "amrap";
+  el.rftPresets.hidden = strategy !== "rft";
+  el.countLabel.textContent = countLabelFor(strategy);
+}
+
 function persistSetup() {
+  const strategy = currentStrategy();
   savePrefs({
-    preset: currentPreset(),
-    count: Math.floor(el.count.valueAsNumber),
+    strategy,
     workSecs: Math.floor(el.workSecs.valueAsNumber),
     restSecs: Math.floor(el.restSecs.valueAsNumber),
+    [countKeyFor(strategy)]: Math.floor(el.count.valueAsNumber),
   });
 }
 
 // Reads the form as it stands and returns a strategy config, or null if the
-// count or the custom work/rest fields hold something unusable.
+// count or the work/rest fields hold something unusable.
 function buildConfig() {
-  const preset = currentPreset();
+  const strategy = currentStrategy();
   const count = Math.floor(el.count.valueAsNumber);
   if (!validCount(count)) return null;
 
-  if (preset === "amrap") return { strategy: "amrap", amrapWindow: count * 60000 };
-  if (preset === "rft") return { strategy: "rft", rftRounds: count };
+  if (strategy === "amrap") return { strategy: "amrap", amrapWindow: count * 60000 };
+  if (strategy === "rft") return { strategy: "rft", rftRounds: count };
 
-  const { work, rest } = preset === "custom"
-    ? { work: Math.floor(el.workSecs.valueAsNumber), rest: Math.floor(el.restSecs.valueAsNumber) }
-    : INTERVAL_PRESETS[preset];
+  const work = Math.floor(el.workSecs.valueAsNumber);
+  const rest = Math.floor(el.restSecs.valueAsNumber);
   if (!validSeconds(work, 1) || !validSeconds(rest, 0)) return null;
   return { strategy: "intervals", work: work * 1000, rest: rest * 1000, intervalCycles: count };
 }
@@ -941,21 +987,40 @@ el.setup.addEventListener("submit", (e) => {
   start(config);
 });
 
-// A named preset applies its canonical numbers; Custom leaves work/rest as
-// they are, since it has none of its own to apply.
-el.presets.addEventListener("change", (e) => {
-  if (e.target.name !== "preset") return;
-  const preset = e.target.value;
-  el.customFields.hidden = preset !== "custom";
-  el.countLabel.textContent = countLabelFor(preset);
-  if (preset in INTERVAL_PRESETS) {
-    const p = INTERVAL_PRESETS[preset];
-    el.workSecs.value = String(p.work);
-    el.restSecs.value = String(p.rest);
-    el.count.value = String(p.cycles);
-  } else {
-    el.count.value = String(DEFAULT_COUNT[preset] ?? 10);
-  }
+el.strategies.addEventListener("change", (e) => {
+  if (e.target.name !== "strategy") return;
+  const strategy = e.target.value;
+  showStrategy(strategy);
+  const prefs = loadPrefs();
+  const stored = prefs[countKeyFor(strategy)];
+  el.count.value = String(validCount(stored) ? stored : DEFAULT_COUNT[strategy]);
+  savePrefs({ strategy });
+});
+
+// Presets fill in the fields belonging to whichever strategy is already
+// active; they never touch the strategy radio, since they are only visible
+// when its strategy is already the one selected.
+el.intervalsPresets.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-intervals-preset]");
+  if (!btn) return;
+  const p = INTERVALS_PRESETS[btn.dataset.intervalsPreset];
+  el.workSecs.value = String(p.work);
+  el.restSecs.value = String(p.rest);
+  el.count.value = String(p.cycles);
+  persistSetup();
+});
+
+el.amrapPresets.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-amrap-preset]");
+  if (!btn) return;
+  el.count.value = btn.dataset.amrapPreset;
+  persistSetup();
+});
+
+el.rftPresets.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-rft-preset]");
+  if (!btn) return;
+  el.count.value = btn.dataset.rftPreset;
   persistSetup();
 });
 
@@ -989,22 +1054,17 @@ function init() {
     el.build.href = `https://github.com/nothub/gym-timer/commit/${self.BUILD}`;
   }
 
-  const preset = PRESET_KEYS.includes(prefs.preset) ? prefs.preset : "emom";
-  document.querySelector(`input[name="preset"][value="${preset}"]`).checked = true;
-  el.customFields.hidden = preset !== "custom";
-  el.countLabel.textContent = countLabelFor(preset);
+  const strategy = STRATEGIES.includes(prefs.strategy) ? prefs.strategy : "intervals";
+  document.querySelector(`input[name="strategy"][value="${strategy}"]`).checked = true;
+  showStrategy(strategy);
 
-  if (preset in INTERVAL_PRESETS) {
-    const p = INTERVAL_PRESETS[preset];
-    el.workSecs.value = String(p.work);
-    el.restSecs.value = String(p.rest);
-  } else if (preset === "custom") {
-    el.workSecs.value = String(validSeconds(prefs.workSecs, 1) ? prefs.workSecs : 40);
-    el.restSecs.value = String(validSeconds(prefs.restSecs, 0) ? prefs.restSecs : 20);
-  }
+  // Always restored, not just when Intervals is active: they are its own
+  // remembered fields, not a per-strategy scratch pad that resets on switch.
+  el.workSecs.value = String(validSeconds(prefs.workSecs, 1) ? prefs.workSecs : 60);
+  el.restSecs.value = String(validSeconds(prefs.restSecs, 0) ? prefs.restSecs : 0);
 
-  const fallback = preset in INTERVAL_PRESETS ? INTERVAL_PRESETS[preset].cycles : (DEFAULT_COUNT[preset] ?? 10);
-  el.count.value = String(validCount(prefs.count) ? prefs.count : fallback);
+  const stored = prefs[countKeyFor(strategy)];
+  el.count.value = String(validCount(stored) ? stored : DEFAULT_COUNT[strategy]);
 }
 
 init();

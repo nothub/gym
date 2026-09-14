@@ -1,10 +1,11 @@
 # gym-timer
 
-A conditioning timer. Three strategies, picked as a preset chip on the setup
-screen:
+A conditioning timer. Three strategies, one row of chips on the setup screen:
 
-- **Intervals** -- work, then rest, repeated. EMOM (60/0), E2MOM (120/0) and
-  Tabata (20/10 x8) are presets of it; Custom sets work and rest by hand.
+- **Intervals** -- work, then rest, repeated. Work and rest are always on
+  screen, so there is nothing to configure to hand-type your own; EMOM
+  (60/0), E2MOM (120/0) and Tabata (20/10 x8) are presets that fill them in,
+  not separate modes -- clicking one never leaves Intervals.
 - **AMRAP** -- a fixed countdown. Tap the big number to record a round; the
   score is how many you got.
 - **RFT** -- a stopwatch, counting up. Tap to record a round; it ends on the
