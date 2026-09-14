@@ -205,9 +205,8 @@ input[type="checkbox"] {
    and inside that, text-align has no say over where a flex item sits --
    only justify-content does, which nothing set, so text packed left. */
 #strategies label {
-  min-width: 6rem; /* fits "Intervals", the longest of the three -- see AMRAP/RFT */
   text-align: center;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2);
   font-size: var(--text-sm);
   color: var(--dim);
   background: var(--srf);
@@ -1010,8 +1009,8 @@ function countKeyFor(strategy) {
 }
 
 function countLabelFor(strategy) {
-  if (strategy === "amrap") return "Minutes";
-  if (strategy === "rft") return "Rounds";
+  if (strategy === "amrap") return "⚡ Minutes";
+  if (strategy === "rft") return "🏁 Rounds";
   return "🔁 Cycles";
 }
 
