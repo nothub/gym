@@ -158,6 +158,11 @@ input[type="checkbox"] {
 
 #presets {
   display: flex;
+  /* Overrides the bare fieldset rule's centering: a short line of chips (the
+     2-item AMRAP/RFT group) must start-align like every other line, not
+     centre on its own. Invisible while every group was ~full width; the
+     narrower group made it visible. */
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: var(--space-4); /* wider than a group's own gap: the space is the divider */
   margin: 0;
@@ -367,10 +372,11 @@ noscript p {
 
     <fieldset id="presets">
       <legend class="sr-only">Strategy</legend>
-      <!-- EMOM, E2MOM and Tabata are named aliases for Intervals(work, rest):
-           fixed numbers under one name. Grouped apart from AMRAP, RFT and
-           Custom, which are not -- the first two are their own strategies,
-           and Custom has no canonical numbers to be an alias of. -->
+      <!-- Grouped by strategy, not by chip. EMOM, E2MOM and Tabata are named
+           aliases for Intervals(work, rest); Custom is the same strategy with
+           work/rest read from the form instead of a canonical pair, so it
+           belongs here too, last, as the group's escape hatch. AMRAP and RFT
+           are genuinely different strategies and sit apart from all four. -->
       <div class="preset-group">
         <label>
           <input type="radio" name="preset" value="emom" checked> EMOM
@@ -384,11 +390,11 @@ noscript p {
           <input type="radio" name="preset" value="tabata"> Tabata
           <span class="preset-detail" id="detail-tabata"></span>
         </label>
+        <label><input type="radio" name="preset" value="custom"> Custom</label>
       </div>
       <div class="preset-group">
         <label><input type="radio" name="preset" value="amrap"> AMRAP</label>
         <label><input type="radio" name="preset" value="rft"> RFT</label>
-        <label><input type="radio" name="preset" value="custom"> Custom</label>
       </div>
     </fieldset>
 

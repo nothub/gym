@@ -36,6 +36,25 @@ test("centres the cue checkboxes across the form", async ({ page }) => {
     expect(Math.abs(contentCentre - (form.x + form.width / 2))).toBeLessThan(2);
 });
 
+test("every preset row starts at the same left edge, however many chips it holds", async ({ page }) => {
+    await page.goto("/");
+
+    // #presets is a <fieldset>, and a bare `fieldset { justify-content:
+    // center }` rule exists for #cues. It silently reached #presets too, and
+    // stayed invisible as long as every wrapped line was near full width --
+    // only the 2-chip AMRAP/RFT line, narrower than the rest, exposed it by
+    // centering on its own row instead of aligning with everything above it.
+    const rows = [
+        page.locator('label:has(input[value="emom"])'),
+        page.locator('label:has(input[value="custom"])'),
+        page.locator('label:has(input[value="amrap"])'),
+    ];
+    const lefts = await Promise.all(rows.map(async (r) => (await r.boundingBox()).x));
+    for (const x of lefts.slice(1)) {
+        expect(Math.abs(x - lefts[0])).toBeLessThan(2);
+    }
+});
+
 test("stacks the progress label, countdown, phase, then controls", async ({ page }) => {
     await page.goto("/");
     await start(page);
