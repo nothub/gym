@@ -268,6 +268,31 @@ test("disables the buzz checkbox when the browser has no Vibration API", async (
     await expect(page.getByLabel("Sound")).toBeEnabled();
 });
 
+test("completes a workout when the browser refuses to make an AudioContext", async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+
+    await page.addInitScript(() => {
+        window.AudioContext = function () {
+            throw new Error("audio blocked");
+        };
+        delete window.webkitAudioContext;
+    });
+    await page.clock.install();
+    await page.goto("/");
+
+    await page.locator("#rounds").fill("1");
+    await start(page);
+    // Start calls initAudio before start(); an escaping throw stops it here.
+    await expect(page.locator("#timer")).toBeVisible();
+
+    // beep runs inside the animation frame, so a throw there kills the loop.
+    await page.clock.fastForward(70_500);
+    await expect(page.locator("#phase")).toHaveText("Done");
+
+    expect(errors).toEqual([]);
+});
+
 test("starting the timer does not throw", async ({ page }) => {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));

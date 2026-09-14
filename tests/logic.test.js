@@ -33,6 +33,7 @@ async function run({
     rounds = 3,
     stopAt = null,
     build = "dev",
+    audioThrows = false,
 } = {}) {
     let now = 0;
     const beeps = [];
@@ -168,7 +169,12 @@ async function run({
         self: { BUILD: build },
         document,
         window: {
-            AudioContext: FakeAudioContext,
+            // A browser can refuse to construct one at all.
+            AudioContext: audioThrows
+                ? function () {
+                    throw new Error("audio blocked");
+                }
+                : FakeAudioContext,
             isSecureContext: false,
             addEventListener() {},
         },
@@ -265,6 +271,18 @@ Deno.test("ends on an ascending fanfare and settles the screen", async () => {
     strictEqual(els["round-label"].textContent, "3 rounds");
     strictEqual(els.pause.hidden, true);
     strictEqual(els.reset.textContent, "Again");
+});
+
+Deno.test("a workout runs to the end when audio cannot start", async () => {
+    const { els, beeps, buzzes, flashes } = await run({ rounds: 2, audioThrows: true });
+
+    // The clock is the product; sound is a cue. Losing the cue must not lose
+    // the workout, and the visual and haptic cues carry on regardless.
+    strictEqual(els.seconds.textContent, "💪");
+    strictEqual(els["round-label"].textContent, "2 rounds");
+    deepStrictEqual(beeps, []);
+    strictEqual(flashes.length, 3);
+    ok(buzzes.length > 0);
 });
 
 Deno.test("silent mode drops sound and buzz but keeps the flash", async () => {
