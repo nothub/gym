@@ -10,6 +10,14 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root {
+  /* The spin buttons on a number input and an unchecked checkbox's box are
+     drawn by the browser, not by anything here: accent-color reaches the
+     checked state and nothing else, so both were still being painted from
+     the UA's light palette against a near-black page. This picks the dark
+     one instead, which is the only way to reach that chrome without
+     appearance: none and hand-drawing replacements. */
+  color-scheme: dark;
+
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-4: 1rem;
