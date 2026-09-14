@@ -157,6 +157,16 @@ test("counts a real minute down to the flash at the cycle boundary", async ({ pa
     await expect(page.locator("#round-label")).toHaveText("Cycle 1 / 2");
 });
 
+test("each alias chip shows its own work/rest under its name", async ({ page }) => {
+    await page.goto("/");
+
+    // Populated from the same INTERVAL_PRESETS object buildConfig() reads, so
+    // the chip cannot claim numbers the preset does not actually use.
+    await expect(page.locator("#detail-emom")).toHaveText("60/0");
+    await expect(page.locator("#detail-e2mom")).toHaveText("120/0");
+    await expect(page.locator("#detail-tabata")).toHaveText("20/10");
+});
+
 test("switching to Tabata reveals nothing extra, but Custom reveals work and rest", async ({ page }) => {
     await page.goto("/");
 

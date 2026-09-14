@@ -172,13 +172,26 @@ input[type="checkbox"] {
 }
 
 #presets label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   padding: var(--space-2) var(--space-4);
   font-size: var(--text-sm);
+  line-height: 1.3;
   color: var(--dim);
   background: var(--srf);
   border: 1px solid var(--brd);
   border-radius: var(--radius);
   cursor: pointer;
+}
+
+/* Work/rest in seconds, under the name, on the three fixed-number aliases
+   only -- AMRAP, RFT and Custom have no canonical pair to show. */
+.preset-detail {
+  font-size: 0.7em;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
 }
 
 #presets input {
@@ -359,9 +372,18 @@ noscript p {
            Custom, which are not -- the first two are their own strategies,
            and Custom has no canonical numbers to be an alias of. -->
       <div class="preset-group">
-        <label><input type="radio" name="preset" value="emom" checked> EMOM</label>
-        <label><input type="radio" name="preset" value="e2mom"> E2MOM</label>
-        <label><input type="radio" name="preset" value="tabata"> Tabata</label>
+        <label>
+          <input type="radio" name="preset" value="emom" checked> EMOM
+          <span class="preset-detail" id="detail-emom"></span>
+        </label>
+        <label>
+          <input type="radio" name="preset" value="e2mom"> E2MOM
+          <span class="preset-detail" id="detail-e2mom"></span>
+        </label>
+        <label>
+          <input type="radio" name="preset" value="tabata"> Tabata
+          <span class="preset-detail" id="detail-tabata"></span>
+        </label>
       </div>
       <div class="preset-group">
         <label><input type="radio" name="preset" value="amrap"> AMRAP</label>
@@ -467,6 +489,14 @@ const INTERVAL_PRESETS = {
 };
 const DEFAULT_COUNT = { custom: 10, amrap: 12, rft: 5 };
 const PRESET_KEYS = ["emom", "e2mom", "tabata", "custom", "amrap", "rft"];
+
+// The work/rest shown under each alias's name comes from the same object the
+// clock reads, not a second copy in the markup -- so the chip cannot end up
+// claiming numbers the preset no longer uses.
+for (const [key, p] of Object.entries(INTERVAL_PRESETS)) {
+  const detail = document.getElementById(`detail-${key}`);
+  if (detail) detail.textContent = `${p.work}/${p.rest}`;
+}
 
 /* ---------- preferences ---------- */
 // Everything the app remembers lives in one localStorage entry. An earlier
