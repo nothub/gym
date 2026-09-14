@@ -23,6 +23,7 @@ const CUE_STATES = {
     off: { sound: false, buzz: false },
 };
 const STEP = 16; // ~60fps, matching requestAnimationFrame
+const PREP_MS = 10_000; // mirrors the app's own constant, which every strategy waits out first
 
 /**
  * Load the app into a synthetic environment and run one workout.
@@ -419,7 +420,7 @@ async function run({
     const tap = () => els.seconds.fire("click");
 
     return {
-        els, initial, seeded, beeps, buzzes, flashes, store, wakeLog,
+        els, initial, seeded, beeps, buzzes, flashes, store, wakeLog, doneAt,
         setVisibility, browserDropsLock, bodyHasClass, tap,
     };
 }
@@ -610,6 +611,25 @@ Deno.test("AMRAP counts down a fixed window and reports rounds by tap", async ()
 Deno.test("the 15-minute AMRAP preset fills the window, not a round count", async () => {
     const { seeded } = await run({ strategy: "amrap", amrapPreset: 15, count: 1, stopAt: 0 });
     strictEqual(seeded.count, "15");
+});
+
+Deno.test("the AMRAP window runs exactly as long as it was set", async () => {
+    // Each tier bounded this from one side only. The browser tier fast-forwards
+    // to the nominal end and asserts Done, so it catches a window that runs
+    // long but not one that finishes early; nothing here pinned the finish at
+    // all, so a window running long passed the whole tier. Pinning the instant
+    // closes both directions in one place.
+    for (const minutes of [1, 2]) {
+        const { doneAt } = await run({ strategy: "amrap", count: minutes });
+        const expected = PREP_MS + minutes * 60_000;
+        // The loop only looks between frames, so the first frame to report Done
+        // is the first one at or after the true end -- never earlier, and never
+        // a whole frame late.
+        ok(
+            doneAt >= expected && doneAt < expected + STEP,
+            `${minutes}-minute window finished at ${doneAt}, expected ${expected}`,
+        );
+    }
 });
 
 Deno.test("AMRAP cues the start and the finish, never an intermediate boundary", async () => {
