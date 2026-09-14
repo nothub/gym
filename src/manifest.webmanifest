@@ -1,7 +1,7 @@
 {
-  "name": "EMOM Timer",
-  "short_name": "EMOM",
-  "description": "Every minute on the minute. Pick a number of rounds, go.",
+  "name": "Gym Timer",
+  "short_name": "Timer",
+  "description": "Interval, AMRAP and RFT timer for conditioning work.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

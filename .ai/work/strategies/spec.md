@@ -95,7 +95,9 @@ mark it, a full-screen flash at the same moment, optional buzz.
   `rest = 0` there are only work-to-work transitions, which is today's behaviour.
 - **AMRAP** cues the last three seconds and the finish. No intermediate
   boundaries exist.
-- **RFT** counts up, so there is nothing to count down to. Cue the finish only.
+- **RFT** counts up once its own work begins, so nothing there counts down to
+  a boundary and the 3-2-1 is skipped. Prep precedes every strategy and is
+  always bounded, so RFT keeps the prep countdown; only its own phase is exempt.
 
 ## Screens
 
@@ -110,8 +112,11 @@ because those count different things. In AMRAP and RFT
 the countdown area is the tap target, large because the athlete is breathing
 hard and not aiming carefully.
 
-**Done.** Gains a result line for AMRAP (rounds completed) and RFT (elapsed).
-Intervals has nothing to report and keeps today's screen.
+**Done.** Gains a result for AMRAP and RFT, reusing existing elements rather
+than adding new ones: AMRAP's round count already lives in the progress label,
+so done just stops incrementing it; RFT's elapsed time takes over the digit
+display in place of the finish emoji, since the countdown and the result are
+the same clock. Intervals has nothing to report and keeps today's screen.
 
 ## Persistence
 

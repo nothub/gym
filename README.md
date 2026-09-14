@@ -1,14 +1,21 @@
 # gym-timer
 
-An EMOM timer. Pick a number of minutes, press start, do the work at the top of
-each one.
+A conditioning timer. Three strategies, picked as a preset chip on the setup
+screen:
+
+- **Intervals** -- work, then rest, repeated. EMOM (60/0), E2MOM (120/0) and
+  Tabata (20/10 x8) are presets of it; Custom sets work and rest by hand.
+- **AMRAP** -- a fixed countdown. Tap the big number to record a round; the
+  score is how many you got.
+- **RFT** -- a stopwatch, counting up. Tap to record a round; it ends on the
+  target and reports the time.
 
 Live at <https://nothub.github.io/gym-timer/>.
 
-EMOM means every minute on the minute. A round is always 60 seconds, so the
-round count is the only thing to configure. Three short beeps lead into each
-minute, a longer one marks it, and the screen flashes at the same moment so the
-cue carries across a noisy room.
+Three short beeps lead into every transition a strategy has, a longer one
+marks it, and the screen flashes at the same moment so the cue carries across
+a noisy room. RFT counts up with nothing to count down to, so it only cues the
+prep countdown and the finish.
 
 ## Running it
 

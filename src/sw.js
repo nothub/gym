@@ -1,4 +1,4 @@
-// Offline shell for the EMOM timer.
+// Offline shell for the gym timer.
 //
 // The build id comes from version.js, which the build rewrites, so this file
 // is never touched. Imported scripts are inside the byte-for-byte update check

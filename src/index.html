@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>EMOM Timer</title>
+<title>Gym Timer</title>
 <meta name="theme-color" content="#0f0f0f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -152,6 +152,54 @@ input[type="checkbox"] {
   cursor: inherit;
 }
 
+/* Presets. The radio itself is visually hidden but stays in the tab order and
+   inside its label, so a click anywhere on the chip and a screen reader both
+   reach the same control -- no id/for pairing to keep in sync. */
+
+#presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#presets label {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--dim);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+#presets input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+#presets label:has(input:checked) {
+  color: var(--bg);
+  background: var(--acc);
+  border-color: var(--acc);
+}
+
+#presets label:has(input:focus-visible) {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+#custom-fields {
+  display: flex;
+  gap: var(--space-4);
+}
+
+#custom-fields > div { flex: 1; }
+
 /* Timer */
 
 #timer {
@@ -173,12 +221,42 @@ input[type="checkbox"] {
   color: var(--dim);
 }
 
+/* #seconds is a <button>: in AMRAP and RFT it is the tap target, chosen
+   because it is the largest thing on screen and the athlete is not aiming
+   carefully. Reset to plain text and re-enable pointer affordance only when
+   JS marks it interactive. */
 #seconds {
   margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
   font-size: var(--text-huge);
   font-weight: 200;
   line-height: 0.9;
   font-variant-numeric: tabular-nums;
+  color: inherit;
+  cursor: default;
+}
+
+/* A button with every default reset looks identical to plain text, and a
+   touchscreen has no hover state to hint at it either -- so tappability needs
+   a persistent mark, not just a cursor. box-shadow rather than border: it
+   does not participate in layout, so the centred-digits geometry is unaffected. */
+#seconds:not(:disabled) {
+  cursor: pointer;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius);
+  /* --dim, not --brd: --brd is tuned for a hairline on a small input, and
+     disappears entirely at this size against --bg. */
+  box-shadow: inset 0 0 0 2px var(--dim);
+}
+
+#seconds:not(:disabled):active { transform: scale(0.97); }
+
+#seconds:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 4px;
 }
 
 #seconds.warn { color: var(--acc); }
@@ -266,12 +344,35 @@ noscript p {
 
 <main>
   <form id="setup">
-    <h1>EMOM</h1>
+    <h1>Timer</h1>
+
+    <fieldset id="presets">
+      <legend class="sr-only">Strategy</legend>
+      <label><input type="radio" name="preset" value="emom" checked> EMOM</label>
+      <label><input type="radio" name="preset" value="e2mom"> E2MOM</label>
+      <label><input type="radio" name="preset" value="tabata"> Tabata</label>
+      <label><input type="radio" name="preset" value="custom"> Custom</label>
+      <label><input type="radio" name="preset" value="amrap"> AMRAP</label>
+      <label><input type="radio" name="preset" value="rft"> RFT</label>
+    </fieldset>
+
     <div>
-      <label for="rounds">Rounds (minutes)</label>
-      <input id="rounds" name="rounds" type="number" inputmode="numeric"
+      <label for="count" id="count-label">Cycles</label>
+      <input id="count" name="count" type="number" inputmode="numeric"
              min="1" max="99" step="1" value="10" required>
     </div>
+
+    <div id="custom-fields" hidden>
+      <div>
+        <label for="work-secs">Work (s)</label>
+        <input id="work-secs" type="number" inputmode="numeric" min="1" max="600" step="1" value="40">
+      </div>
+      <div>
+        <label for="rest-secs">Rest (s)</label>
+        <input id="rest-secs" type="number" inputmode="numeric" min="0" max="600" step="1" value="20">
+      </div>
+    </div>
+
     <fieldset id="cues">
       <legend class="sr-only">Cues</legend>
       <label><input id="cue-sound" type="checkbox" checked> Sound</label>
@@ -283,7 +384,7 @@ noscript p {
 
   <section id="timer" hidden>
     <p id="round-label">&nbsp;</p>
-    <p id="seconds" role="timer">10</p>
+    <button type="button" id="seconds" role="timer" disabled>10</button>
     <p id="phase">Get ready</p>
     <div id="controls">
       <button type="button" id="pause">Pause</button>
@@ -316,12 +417,16 @@ noscript p {
 <script>
 "use strict";
 
-const ROUND_MS = 60000;
 const PREP_MS = 10000;
 
 const el = {
   setup: document.getElementById("setup"),
-  rounds: document.getElementById("rounds"),
+  presets: document.getElementById("presets"),
+  count: document.getElementById("count"),
+  countLabel: document.getElementById("count-label"),
+  customFields: document.getElementById("custom-fields"),
+  workSecs: document.getElementById("work-secs"),
+  restSecs: document.getElementById("rest-secs"),
   timer: document.getElementById("timer"),
   phase: document.getElementById("phase"),
   seconds: document.getElementById("seconds"),
@@ -335,13 +440,27 @@ const el = {
   build: document.getElementById("build"),
 };
 
+/* ---------- strategies ---------- */
+// A named Intervals preset fixes work, rest and a canonical cycle count.
+// "Custom" is Intervals with work/rest read from the form instead. AMRAP and
+// RFT have no work/rest -- the single count field means something different
+// for each, which is why it carries a preset-specific label (see countLabelFor).
+const INTERVAL_PRESETS = {
+  emom: { work: 60, rest: 0, cycles: 10 },
+  e2mom: { work: 120, rest: 0, cycles: 6 },
+  // Timing convention only, not the 1996 protocol: see .ai/work/strategies/spec.md.
+  tabata: { work: 20, rest: 10, cycles: 8 },
+};
+const DEFAULT_COUNT = { custom: 10, amrap: 12, rft: 5 };
+const PRESET_KEYS = ["emom", "e2mom", "tabata", "custom", "amrap", "rft"];
+
 /* ---------- preferences ---------- */
 // Everything the app remembers lives in one localStorage entry. An earlier
 // split kept the round count in the URL so a workout was bookmarkable, which
 // bought a second place to look when a setting misbehaved.
 
 const STORE_KEY = "emom";
-const MAX_ROUNDS = 99;
+const MAX_COUNT = 99;
 
 // Chrome desktop exposes vibrate() with no hardware behind it; that is harmless.
 // The case this actually catches is iOS Safari, which has never shipped it.
@@ -350,7 +469,8 @@ const canVibrate = typeof navigator.vibrate === "function";
 // The checkboxes are the state; there is nothing to mirror them into.
 const wantSound = () => el.cueSound.checked;
 const wantBuzz = () => canVibrate && el.cueBuzz.checked;
-const validRounds = (v) => Number.isInteger(v) && v >= 1 && v <= MAX_ROUNDS;
+const validCount = (v) => Number.isInteger(v) && v >= 1 && v <= MAX_COUNT;
+const validSeconds = (v, min) => Number.isInteger(v) && v >= min && v <= 600;
 
 function loadPrefs() {
   // localStorage throws rather than returning null when storage is blocked.
@@ -478,22 +598,79 @@ document.addEventListener("visibilitychange", () => {
 
 /* ---------- clock ---------- */
 
-// Pure: elapsed ms since start -> what belongs on screen.
-// Kept free of DOM and clock so it can be tested directly.
-function derive(elapsed, totalRounds) {
-  if (elapsed < PREP_MS) {
-    return { phase: "prep", round: 0, remaining: PREP_MS - elapsed };
+// One pure function per strategy, dispatched on elapsed ms since prep ended.
+// No DOM, no clock, no tap count read from anywhere but their arguments --
+// that is what keeps the minute boundaries free of drift and the whole thing
+// testable without a browser.
+//
+// Intervals derives everything, including the round, from elapsed time alone.
+// AMRAP and RFT are athlete-paced: taps are state held outside derive() and
+// passed in, so "round" for those two is never a function of t.
+
+function deriveIntervals(t, config) {
+  const { work, rest, intervalCycles } = config;
+  const cycle = work + rest;
+  const cycleNum = Math.floor(t / cycle) + 1;
+  if (cycleNum > intervalCycles) {
+    return { phase: "done", round: intervalCycles, remaining: 0 };
   }
-  const t = elapsed - PREP_MS;
-  const round = Math.floor(t / ROUND_MS) + 1;
-  if (round > totalRounds) {
-    return { phase: "done", round: totalRounds, remaining: 0 };
+  const inCycle = t % cycle;
+  // With rest = 0, cycle === work, so inCycle < work always holds and phase
+  // never becomes "rest". That equivalence is what makes EMOM Intervals(60, 0).
+  if (inCycle < work) {
+    return { phase: "work", round: cycleNum, remaining: work - inCycle };
   }
-  return { phase: "run", round, remaining: ROUND_MS - (t % ROUND_MS) };
+  return { phase: "rest", round: cycleNum, remaining: cycle - inCycle };
+}
+
+function deriveAmrap(t, taps, config) {
+  if (t >= config.amrapWindow) {
+    return { phase: "done", round: taps, remaining: 0 };
+  }
+  return { phase: "work", round: taps, remaining: config.amrapWindow - t };
+}
+
+function deriveRft(t, taps, config) {
+  // Done is a tap-count threshold, not a time one: t only ever counts up.
+  if (taps >= config.rftRounds) {
+    return { phase: "done", round: taps, remaining: t };
+  }
+  return { phase: "work", round: taps, remaining: t };
+}
+
+function derive(elapsedMs, taps, config) {
+  if (elapsedMs < PREP_MS) {
+    return { phase: "prep", round: 0, remaining: PREP_MS - elapsedMs };
+  }
+  const t = elapsedMs - PREP_MS;
+  if (config.strategy === "amrap") return deriveAmrap(t, taps, config);
+  if (config.strategy === "rft") return deriveRft(t, taps, config);
+  return deriveIntervals(t, config);
+}
+
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+// RFT counts up with no bound once its own work phase begins, so nothing
+// there counts down to a boundary. Prep is bounded for every strategy, so it
+// always gets the 3-2-1, RFT included.
+function tickable(state, config) {
+  return state.phase === "prep" || config.strategy !== "rft";
+}
+
+// RFT's remaining counts up without bound, so its big-digit display is a
+// clock face rather than the bare second-count the other two strategies use.
+function formatClock(ms) {
+  const totalSecs = Math.floor(ms / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
 const clock = {
-  total: 0,
+  config: null,
+  taps: 0,
   startedAt: 0,
   pausedAt: 0,
   pausedTotal: 0,
@@ -511,18 +688,22 @@ let lastSecond = null;
 let lastRound = null;
 let lastPhase = null;
 
-function render(state, secs) {
+function render(state, secs, config) {
   if (state.phase === "done") {
     el.phase.textContent = "Done";
-    el.seconds.textContent = "💪";
+    el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : "💪";
     el.seconds.className = "done";
-    el.roundLabel.textContent = `${clock.total} rounds`;
+    el.roundLabel.textContent = config.strategy === "intervals"
+      ? plural(config.intervalCycles, "cycle")
+      : plural(state.round, "round");
   } else {
-    el.phase.textContent = state.phase === "prep" ? "Get ready" : "Work";
-    el.seconds.textContent = String(secs);
-    el.seconds.className = secs <= 3 ? "warn" : "";
-    el.roundLabel.textContent =
-      state.phase === "prep" ? " " : `Round ${state.round} / ${clock.total}`;
+    el.phase.textContent = state.phase === "prep" ? "Get ready"
+      : state.phase === "rest" ? "Rest" : "Work";
+    el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : String(secs);
+    el.seconds.className = tickable(state, config) && secs <= 3 ? "warn" : "";
+    el.roundLabel.textContent = state.phase === "prep" ? " "
+      : config.strategy === "intervals" ? `Cycle ${state.round} / ${config.intervalCycles}`
+      : `Round ${state.round}`;
   }
 
   // The ticking number is role="timer" so it is not announced every second.
@@ -531,26 +712,37 @@ function render(state, secs) {
     el.live.textContent =
       state.phase === "done" ? "Workout complete"
       : state.phase === "prep" ? "Get ready"
-      : `Round ${state.round} of ${clock.total}`;
+      : config.strategy === "intervals" ? `Cycle ${state.round} of ${config.intervalCycles}`
+      : `Round ${state.round}`;
   }
 }
 
-function cue(state, secs) {
+function cue(state, secs, config) {
+  // A transition fires cues.start(): entering work or rest from anything
+  // else, or -- for Intervals only -- rolling into a new cycle while the
+  // phase stays "work" (rest = 0, so there is no work<->rest edge to catch
+  // it). AMRAP and RFT never hit that second branch: their round changes on
+  // a tap, not a cycle boundary, and a tap must not re-fire the cue.
+  const transitioned =
+    (state.phase === "work" || state.phase === "rest") &&
+    (state.phase !== lastPhase ||
+      (config.strategy === "intervals" && state.round !== lastRound));
+
   if (state.phase === "done") {
     cues.done();
-  } else if (state.phase === "run" && state.round !== lastRound) {
+  } else if (transitioned) {
     cues.start();
-  } else if (secs <= 3 && secs >= 1 && secs !== lastSecond) {
+  } else if (tickable(state, config) && secs <= 3 && secs >= 1 && secs !== lastSecond) {
     cues.tick();
   }
 }
 
 function tick() {
-  const state = derive(elapsed(), clock.total);
+  const state = derive(elapsed(), clock.taps, clock.config);
   const secs = Math.ceil(state.remaining / 1000);
 
-  render(state, secs);
-  cue(state, secs);
+  render(state, secs, clock.config);
+  cue(state, secs, clock.config);
   lastSecond = secs;
   lastRound = state.round;
   lastPhase = state.phase;
@@ -559,6 +751,7 @@ function tick() {
     stopLoop();
     releaseScreen();
     el.pause.hidden = true;
+    el.seconds.disabled = true;
     el.reset.textContent = "Again";
     return;
   }
@@ -570,8 +763,9 @@ function stopLoop() {
   clock.frame = null;
 }
 
-function start(totalRounds) {
-  clock.total = totalRounds;
+function start(config) {
+  clock.config = config;
+  clock.taps = 0;
   clock.startedAt = performance.now();
   clock.pausedAt = 0;
   clock.pausedTotal = 0;
@@ -584,10 +778,30 @@ function start(totalRounds) {
   el.pause.hidden = false;
   el.pause.textContent = "Pause";
   el.reset.textContent = "Reset";
+
+  // Only AMRAP and RFT have a round to record. role="timer" is dropped when
+  // tappable so a screen reader announces it as a button rather than a
+  // passive live region, which is what "tap to record a round" needs.
+  const tappable = config.strategy === "amrap" || config.strategy === "rft";
+  el.seconds.disabled = !tappable;
+  if (tappable) {
+    el.seconds.removeAttribute("role");
+    el.seconds.setAttribute("aria-label", "Record round");
+  } else {
+    el.seconds.setAttribute("role", "timer");
+    el.seconds.removeAttribute("aria-label");
+  }
+
   // Kept through pause too: a paused timer is a rest, and the screen dying
   // mid-rest is the thing this exists to prevent.
   holdScreen();
   tick();
+}
+
+function recordTap() {
+  if (clock.config.strategy !== "amrap" && clock.config.strategy !== "rft") return;
+  if (clock.pausedAt) return;
+  clock.taps += 1;
 }
 
 function togglePause() {
@@ -612,26 +826,83 @@ function toSetup() {
   document.body.classList.remove("flash", "paused");
   el.timer.hidden = true;
   el.setup.hidden = false;
-  el.rounds.focus();
+  el.count.focus();
+}
+
+/* ---------- setup form ---------- */
+
+function currentPreset() {
+  return document.querySelector('input[name="preset"]:checked').value;
+}
+
+function countLabelFor(preset) {
+  if (preset === "amrap") return "Minutes";
+  if (preset === "rft") return "Rounds";
+  return "Cycles";
+}
+
+function persistSetup() {
+  savePrefs({
+    preset: currentPreset(),
+    count: Math.floor(el.count.valueAsNumber),
+    workSecs: Math.floor(el.workSecs.valueAsNumber),
+    restSecs: Math.floor(el.restSecs.valueAsNumber),
+  });
+}
+
+// Reads the form as it stands and returns a strategy config, or null if the
+// count or the custom work/rest fields hold something unusable.
+function buildConfig() {
+  const preset = currentPreset();
+  const count = Math.floor(el.count.valueAsNumber);
+  if (!validCount(count)) return null;
+
+  if (preset === "amrap") return { strategy: "amrap", amrapWindow: count * 60000 };
+  if (preset === "rft") return { strategy: "rft", rftRounds: count };
+
+  const { work, rest } = preset === "custom"
+    ? { work: Math.floor(el.workSecs.valueAsNumber), rest: Math.floor(el.restSecs.valueAsNumber) }
+    : INTERVAL_PRESETS[preset];
+  if (!validSeconds(work, 1) || !validSeconds(rest, 0)) return null;
+  return { strategy: "intervals", work: work * 1000, rest: rest * 1000, intervalCycles: count };
 }
 
 /* ---------- wiring ---------- */
 
 el.setup.addEventListener("submit", (e) => {
   e.preventDefault();
-  const n = Math.floor(el.rounds.valueAsNumber);
-  if (!validRounds(n)) return;
+  const config = buildConfig();
+  if (!config) return;
   // Unlock audio on the gesture the autoplay policy wants. The first beep is
-  // 7 s away, by which point there is no gesture left to hang it on.
+  // up to 10 s away, by which point there is no gesture left to hang it on.
   if (wantSound()) initAudio();
-  start(n);
+  start(config);
+});
+
+// A named preset applies its canonical numbers; Custom leaves work/rest as
+// they are, since it has none of its own to apply.
+el.presets.addEventListener("change", (e) => {
+  if (e.target.name !== "preset") return;
+  const preset = e.target.value;
+  el.customFields.hidden = preset !== "custom";
+  el.countLabel.textContent = countLabelFor(preset);
+  if (preset in INTERVAL_PRESETS) {
+    const p = INTERVAL_PRESETS[preset];
+    el.workSecs.value = String(p.work);
+    el.restSecs.value = String(p.rest);
+    el.count.value = String(p.cycles);
+  } else {
+    el.count.value = String(DEFAULT_COUNT[preset] ?? 10);
+  }
+  persistSetup();
 });
 
 // Saved as typed, matching the checkboxes, so nothing depends on pressing Start.
-el.rounds.addEventListener("input", () => {
-  const n = Math.floor(el.rounds.valueAsNumber);
-  if (validRounds(n)) savePrefs({ rounds: n });
+el.count.addEventListener("input", () => {
+  if (validCount(Math.floor(el.count.valueAsNumber))) persistSetup();
 });
+el.workSecs.addEventListener("input", persistSetup);
+el.restSecs.addEventListener("input", persistSetup);
 
 el.cues.addEventListener("change", () => {
   savePrefs({ sound: el.cueSound.checked, buzz: el.cueBuzz.checked });
@@ -640,6 +911,7 @@ el.cues.addEventListener("change", () => {
 
 el.pause.addEventListener("click", togglePause);
 el.reset.addEventListener("click", toSetup);
+el.seconds.addEventListener("click", recordTap);
 
 function init() {
   const prefs = loadPrefs();
@@ -655,7 +927,22 @@ function init() {
     el.build.href = `https://github.com/nothub/gym-timer/commit/${self.BUILD}`;
   }
 
-  el.rounds.value = String(validRounds(prefs.rounds) ? prefs.rounds : 10);
+  const preset = PRESET_KEYS.includes(prefs.preset) ? prefs.preset : "emom";
+  document.querySelector(`input[name="preset"][value="${preset}"]`).checked = true;
+  el.customFields.hidden = preset !== "custom";
+  el.countLabel.textContent = countLabelFor(preset);
+
+  if (preset in INTERVAL_PRESETS) {
+    const p = INTERVAL_PRESETS[preset];
+    el.workSecs.value = String(p.work);
+    el.restSecs.value = String(p.rest);
+  } else if (preset === "custom") {
+    el.workSecs.value = String(validSeconds(prefs.workSecs, 1) ? prefs.workSecs : 40);
+    el.restSecs.value = String(validSeconds(prefs.restSecs, 0) ? prefs.restSecs : 20);
+  }
+
+  const fallback = preset in INTERVAL_PRESETS ? INTERVAL_PRESETS[preset].cycles : (DEFAULT_COUNT[preset] ?? 10);
+  el.count.value = String(validCount(prefs.count) ? prefs.count : fallback);
 }
 
 init();

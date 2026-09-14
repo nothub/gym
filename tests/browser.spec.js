@@ -8,6 +8,7 @@
 import { expect, test } from "@playwright/test";
 
 const start = (page) => page.getByRole("button", { name: "Start" }).click();
+const preset = (page, value) => page.locator(`input[name="preset"][value="${value}"]`).check();
 
 test("centres the setup form instead of sizing it to its contents", async ({ page }) => {
     await page.goto("/");
@@ -35,7 +36,7 @@ test("centres the cue checkboxes across the form", async ({ page }) => {
     expect(Math.abs(contentCentre - (form.x + form.width / 2))).toBeLessThan(2);
 });
 
-test("stacks round count, countdown, phase, then controls", async ({ page }) => {
+test("stacks the progress label, countdown, phase, then controls", async ({ page }) => {
     await page.goto("/");
     await start(page);
 
@@ -110,11 +111,11 @@ test("never scrolls horizontally", async ({ page }) => {
     expect(overflow).toBeLessThanOrEqual(0);
 });
 
-test("runs a whole workout on a real requestAnimationFrame loop", async ({ page }) => {
+test("runs a whole EMOM workout on a real requestAnimationFrame loop", async ({ page }) => {
     await page.clock.install();
     await page.goto("/");
 
-    await page.locator("#rounds").fill("1");
+    await page.locator("#count").fill("1");
     await start(page);
     await expect(page.locator("#phase")).toHaveText("Get ready");
 
@@ -124,8 +125,9 @@ test("runs a whole workout on a real requestAnimationFrame loop", async ({ page 
     await page.clock.fastForward(70_500);
 
     await expect(page.locator("#phase")).toHaveText("Done");
-    await expect(page.locator("#round-label")).toHaveText("1 rounds");
+    await expect(page.locator("#round-label")).toHaveText("1 cycle");
     await expect(page.locator("#pause")).toBeHidden();
+    await expect(page.locator("#seconds")).toBeDisabled();
 
     // The finish glyph is an emoji, which draws taller than the em square the
     // 0.9 line height gives the digits, and spills over the line below.
@@ -139,20 +141,104 @@ test("runs a whole workout on a real requestAnimationFrame loop", async ({ page 
     expect(ratio).toBeGreaterThan(1.1);
 });
 
-test("counts a real minute down to the flash at the boundary", async ({ page }) => {
+test("counts a real minute down to the flash at the cycle boundary", async ({ page }) => {
     await page.clock.install();
     await page.goto("/");
 
-    await page.locator("#rounds").fill("2");
+    await page.locator("#count").fill("2");
     await start(page);
 
     await page.clock.runFor(9_000); // one second of prep left
     await expect(page.locator("#seconds")).toHaveText("1");
     await expect(page.locator("#seconds")).toHaveClass("warn");
 
-    await page.clock.runFor(1_100); // over the line into round 1
+    await page.clock.runFor(1_100); // over the line into cycle 1
     await expect(page.locator("#phase")).toHaveText("Work");
-    await expect(page.locator("#round-label")).toHaveText("Round 1 / 2");
+    await expect(page.locator("#round-label")).toHaveText("Cycle 1 / 2");
+});
+
+test("switching to Tabata reveals nothing extra, but Custom reveals work and rest", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator("#custom-fields")).toBeHidden();
+    await expect(page.locator("#count-label")).toHaveText("Cycles");
+
+    await preset(page, "tabata");
+    await expect(page.locator("#custom-fields")).toBeHidden();
+    await expect(page.locator("#count")).toHaveValue("8");
+
+    await preset(page, "custom");
+    await expect(page.locator("#custom-fields")).toBeVisible();
+    await expect(page.locator("#work-secs")).toBeVisible();
+    await expect(page.locator("#rest-secs")).toBeVisible();
+});
+
+test("AMRAP and RFT relabel the count field and hide work/rest", async ({ page }) => {
+    await page.goto("/");
+
+    await preset(page, "amrap");
+    await expect(page.locator("#count-label")).toHaveText("Minutes");
+    await expect(page.locator("#custom-fields")).toBeHidden();
+
+    await preset(page, "rft");
+    await expect(page.locator("#count-label")).toHaveText("Rounds");
+    await expect(page.locator("#custom-fields")).toBeHidden();
+});
+
+test("AMRAP: the countdown is the tap target and records a round on tap", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/");
+
+    await preset(page, "amrap");
+    await page.locator("#count").fill("1"); // 1-minute window
+    await start(page);
+
+    const seconds = page.locator("#seconds");
+    await expect(seconds).toBeEnabled();
+    await expect(seconds).toHaveAttribute("aria-label", "Record round");
+
+    await page.clock.runFor(10_000); // clear prep
+    await seconds.click();
+    await seconds.click();
+    // A tap only mutates a counter; the display updates on the next animation
+    // frame, and the installed clock only advances on request.
+    await page.clock.runFor(50);
+    await expect(page.locator("#round-label")).toHaveText("Round 2");
+
+    await page.clock.fastForward(60_000);
+    await expect(page.locator("#phase")).toHaveText("Done");
+    await expect(page.locator("#round-label")).toHaveText("2 rounds");
+});
+
+test("Intervals: the countdown is not a tap target", async ({ page }) => {
+    await page.goto("/");
+    await start(page);
+    await expect(page.locator("#seconds")).toBeDisabled();
+});
+
+test("RFT: the countdown shows elapsed time and ends on the target round", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/");
+
+    await preset(page, "rft");
+    await page.locator("#count").fill("2");
+    await start(page);
+
+    await page.clock.runFor(10_000); // clear prep
+    // fastForward, not runFor: nothing mid-flight is asserted here, so paying
+    // for ~4000 intermediate animation frames buys nothing but 19 real seconds.
+    await page.clock.fastForward(65_000);
+    await expect(page.locator("#seconds")).toHaveText("1:05");
+    await expect(page.locator("#phase")).toHaveText("Work");
+
+    await page.locator("#seconds").click();
+    await page.locator("#seconds").click();
+    // Same as above: the tap itself is silent, the render waits for a frame.
+    await page.clock.runFor(50);
+    await expect(page.locator("#phase")).toHaveText("Done");
+    // The result IS the clock: no separate readout, the countdown becomes it.
+    await expect(page.locator("#seconds")).toHaveText("1:05");
+    await expect(page.locator("#round-label")).toHaveText("2 rounds");
 });
 
 test("ships a manifest Chrome will accept for install", async ({ page, request }) => {
@@ -196,8 +282,8 @@ test("serves the app from cache with the network cut", async ({ page, context })
     await context.setOffline(true);
     await page.reload();
 
-    await expect(page.locator("h1")).toHaveText("EMOM");
-    await expect(page.locator("#rounds")).toBeVisible();
+    await expect(page.locator("h1")).toHaveText("Timer");
+    await expect(page.locator("#count")).toBeVisible();
 
     // version.js is precached for this: without it in ASSETS the footer would
     // fall back to "dev" the moment the network went away.
@@ -220,20 +306,22 @@ test("survives a tracking query string offline", async ({ page, context }) => {
     // the query misses the cached entry and the page fails to load.
     await page.goto("/?utm_source=somewhere");
 
-    await expect(page.locator("h1")).toHaveText("EMOM");
+    await expect(page.locator("h1")).toHaveText("Timer");
     await context.setOffline(false);
 });
 
-test("round count persists without touching the url", async ({ page }) => {
+test("preset and count persist without touching the url", async ({ page }) => {
     await page.goto("/");
     const url = page.url();
 
-    await page.locator("#rounds").fill("12");
+    await preset(page, "e2mom");
+    await page.locator("#count").fill("4");
     // Typing used to rewrite the address bar. All state lives in one place now.
     expect(page.url()).toBe(url);
 
     await page.reload();
-    await expect(page.locator("#rounds")).toHaveValue("12");
+    await expect(page.locator('input[name="preset"][value="e2mom"]')).toBeChecked();
+    await expect(page.locator("#count")).toHaveValue("4");
     expect(page.url()).toBe(url);
 });
 
@@ -281,7 +369,7 @@ test("completes a workout when the browser refuses to make an AudioContext", asy
     await page.clock.install();
     await page.goto("/");
 
-    await page.locator("#rounds").fill("1");
+    await page.locator("#count").fill("1");
     await start(page);
     // Start calls initAudio before start(); an escaping throw stops it here.
     await expect(page.locator("#timer")).toBeVisible();
