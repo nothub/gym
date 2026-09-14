@@ -114,7 +114,7 @@ async function run({
                     bodyClasses.add(c);
                     if (c === "flash") flashes.push(now);
                 },
-                remove: (c) => bodyClasses.delete(c),
+                remove: (...cs) => cs.forEach((c) => bodyClasses.delete(c)),
                 contains: (c) => bodyClasses.has(c),
             },
         },
@@ -148,11 +148,30 @@ async function run({
     const store = new Map();
     if (stored) store.set("emom", JSON.stringify(stored));
 
+    // A sentinel the browser can release on its own, as it does when the page
+    // is hidden. Released sentinels cannot be reused, so the app has to notice.
+    let sentinel = null;
+
     const navigator = {
         wakeLock: {
             request: async () => {
                 wakeLog.push("acquire");
-                return { release: () => wakeLog.push("release") };
+                const listeners = [];
+                sentinel = {
+                    released: false,
+                    addEventListener(type, fn) {
+                        if (type === "release") listeners.push(fn);
+                    },
+                    fireRelease() {
+                        sentinel.released = true;
+                        listeners.forEach((fn) => fn());
+                    },
+                    async release() {
+                        wakeLog.push("release");
+                        sentinel.fireRelease();
+                    },
+                };
+                return sentinel;
             },
         },
     };
@@ -229,8 +248,18 @@ async function run({
         await Promise.resolve();
     };
 
+    // What the browser does when the page is hidden: releases the lock without
+    // the app asking, so nothing is appended to wakeLog.
+    const browserDropsLock = async () => {
+        sentinel?.fireRelease();
+        await Promise.resolve();
+    };
+
+    const bodyHasClass = (c) => bodyClasses.has(c);
+
     return {
-        els, initialRounds, beeps, buzzes, flashes, store, wakeLog, setVisibility,
+        els, initialRounds, beeps, buzzes, flashes, store, wakeLog,
+        setVisibility, browserDropsLock, bodyHasClass,
     };
 }
 
@@ -368,6 +397,35 @@ Deno.test("round count and cue choices share one storage entry", async () => {
 Deno.test("holds the screen awake for the workout and releases it at the end", async () => {
     const { wakeLog } = await run({ rounds: 1 });
     deepStrictEqual(wakeLog, ["acquire", "release"]);
+});
+
+Deno.test("does not release a sentinel the browser already dropped", async () => {
+    const mid = await run({ rounds: 5, stopAt: 40_000 });
+    strictEqual(mid.wakeLog.filter((x) => x === "release").length, 0);
+
+    await mid.browserDropsLock();
+    mid.els.reset.fire("click"); // back to setup, which releases the screen
+
+    // A released sentinel cannot be reused, so calling release on it again is
+    // working on a dead object. The app should have let go of the reference.
+    strictEqual(mid.wakeLog.filter((x) => x === "release").length, 0);
+});
+
+Deno.test("freezes the pulse while paused", async () => {
+    const mid = await run({ rounds: 5, stopAt: 40_000 });
+    strictEqual(mid.bodyHasClass("paused"), false);
+
+    mid.els.pause.fire("click");
+    strictEqual(mid.bodyHasClass("paused"), true);
+    strictEqual(mid.els.pause.textContent, "Resume");
+
+    mid.els.pause.fire("click");
+    strictEqual(mid.bodyHasClass("paused"), false);
+
+    // Reset must clear it too, or the next workout starts frozen.
+    mid.els.pause.fire("click");
+    mid.els.reset.fire("click");
+    strictEqual(mid.bodyHasClass("paused"), false);
 });
 
 Deno.test("re-acquires the screen lock the browser dropped while backgrounded", async () => {

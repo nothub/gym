@@ -220,6 +220,10 @@ body.flash :is(#phase, #round-label, #seconds, footer a) { animation: flash-labe
 @media (prefers-reduced-motion: no-preference) {
   /* Starts exactly when the count hits 3, so the 1s loop stays in phase with it. */
   #seconds.warn { animation: pulse 1s ease-out infinite; }
+
+  /* Frozen rather than cleared: a stopped clock that is still pulsing reads
+     as running. play-state holds it where it was instead of snapping. */
+  body.paused #seconds { animation-play-state: paused; }
   @keyframes pulse { from { transform: scale(1.06); } to { transform: scale(1); } }
 }
 
@@ -447,7 +451,14 @@ let wakeLock = null;
 async function holdScreen() {
   if (!("wakeLock" in navigator)) return;
   try {
-    wakeLock = await navigator.wakeLock.request("screen");
+    const sentinel = await navigator.wakeLock.request("screen");
+    // The browser releases the lock itself when the page is hidden, and a
+    // released sentinel cannot be reused. Without this the reference outlives
+    // the thing it points at and releaseScreen works on a dead sentinel.
+    sentinel.addEventListener("release", () => {
+      if (wakeLock === sentinel) wakeLock = null;
+    });
+    wakeLock = sentinel;
   } catch (_) {
     // Denied on low battery, or the tab lost focus mid-request. Not fatal.
   }
@@ -455,7 +466,7 @@ async function holdScreen() {
 
 function releaseScreen() {
   if (!wakeLock) return;
-  wakeLock.release();
+  wakeLock.release().catch(() => {});
   wakeLock = null;
 }
 
@@ -584,11 +595,13 @@ function togglePause() {
     clock.pausedTotal += performance.now() - clock.pausedAt;
     clock.pausedAt = 0;
     el.pause.textContent = "Pause";
+    document.body.classList.remove("paused");
     tick();
   } else {
     clock.pausedAt = performance.now();
     stopLoop();
     el.pause.textContent = "Resume";
+    document.body.classList.add("paused");
   }
 }
 
@@ -596,7 +609,7 @@ function toSetup() {
   stopLoop();
   releaseScreen();
   clock.pausedAt = 0;
-  document.body.classList.remove("flash");
+  document.body.classList.remove("flash", "paused");
   el.timer.hidden = true;
   el.setup.hidden = false;
   el.rounds.focus();
