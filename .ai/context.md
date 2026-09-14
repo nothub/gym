@@ -57,7 +57,13 @@ than relying on context:
 | Interval cycle | `intervalCycles` | "Cycles" |
 | Window | `amrapWindow` | "Minutes" |
 | Round, as a target | `rftRounds` | "Rounds" |
-| Round, as a score | counted at runtime | "Rounds completed" |
+| Round, as a score | counted at runtime | "Rounds" |
+
+Both Rounds rows read the same on screen because they are the same concept. One
+is a target the athlete sets on the setup screen, the other a count the app
+reports on the done screen, and which is which is never in doubt from where it
+appears. Only the field names need qualifying, because code has no screen to sit
+on.
 
 "Round" in prose is fine where only one Strategy is in play, because it names one
 concept. What this glossary retires is a **field or label called `rounds`**: that
