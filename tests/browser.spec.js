@@ -13,6 +13,51 @@ const intervalsPreset = (page, key) => page.locator(`#intervals-presets button[d
 const amrapPreset = (page, mins) => page.locator(`#amrap-presets button[data-amrap-preset="${mins}"]`).click();
 const rftPreset = (page, rounds) => page.locator(`#rft-presets button[data-rft-preset="${rounds}"]`).click();
 
+test("the background vignette never gets bright enough to erode --dim's contrast", async ({ page }) => {
+    await page.goto("/");
+
+    // --dim was tuned to just clear 4.5:1 against the flat --bg it once was.
+    // A background that brightens anywhere -- a glow behind the header, say
+    // -- silently pulls that below AA wherever --dim text lands on it. This
+    // reads the real computed styles rather than trusting the source: it
+    // would have caught the first version of this vignette, which brightened
+    // toward the centre and measured 4.08:1 there.
+    const ratios = await page.evaluate(() => {
+        // A custom property's computed value is its raw authored text ("#7c7c7c"),
+        // not the normalized "rgb(...)" real CSS properties serialize to -- so
+        // it, and any of the gradient's colour keyword or hex stops, need the
+        // browser's own colour parser rather than a hand-rolled one. Letting a
+        // 1x1 canvas resolve the fillStyle does that for any valid CSS colour.
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext("2d");
+        const toRgb = (cssColor) => {
+            ctx.fillStyle = cssColor;
+            ctx.fillRect(0, 0, 1, 1);
+            return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+        };
+
+        const toLin = (c) => {
+            c /= 255;
+            return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        };
+        const luminance = ([r, g, b]) => 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+        const contrast = (aRgb, bRgb) => {
+            const a = luminance(aRgb), b = luminance(bRgb);
+            const [hi, lo] = a > b ? [a, b] : [b, a];
+            return (hi + 0.05) / (lo + 0.05);
+        };
+
+        const dim = toRgb(getComputedStyle(document.documentElement).getPropertyValue("--dim"));
+        const stops = [...getComputedStyle(document.body).backgroundImage.matchAll(/rgb\([^)]+\)/g)]
+            .map((m) => toRgb(m[0]));
+        return stops.map((stop) => contrast(dim, stop));
+    });
+
+    expect(ratios.length).toBeGreaterThan(0);
+    for (const r of ratios) expect(r).toBeGreaterThanOrEqual(4.5);
+});
+
 test("centres the setup form instead of sizing it to its contents", async ({ page }) => {
     await page.goto("/");
 

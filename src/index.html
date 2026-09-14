@@ -31,7 +31,14 @@
   --acc: #f97316;
   --ok: #4ade80;
 
-  --radius: 0.5rem;
+  --radius: 0.75rem;
+
+  /* Every flat grey box (chip, input, button) shares this: a faint top
+     highlight suggesting light catching an edge, plus a soft drop shadow
+     suggesting the surface sits slightly above the background. Neither
+     affects layout -- box-shadow paints outside the box model -- so it does
+     not disturb the pixel geometry the test suite locks in. */
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 * { box-sizing: border-box; }
@@ -42,7 +49,14 @@ body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  /* A flat fill across a very large dark viewport reads as empty rather than
+     calm. Vignette, not a glow: the centre sits at exactly --bg, the value
+     --dim's 4.5:1 text contrast was measured against, and only darkens
+     toward the edges -- a lighter centre reads as "warmer," but it would
+     have put text at less contrast than it was tuned for wherever it landed
+     on the brighter part of the gradient. Darkening can only help contrast,
+     never hurt it, which is what makes this direction the safe one. */
+  background: radial-gradient(ellipse 900px 600px at 50% -10%, var(--bg) 0%, #050505 100%);
   color: var(--txt);
   font-family: system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
@@ -95,6 +109,7 @@ input[type="number"] {
   background: var(--srf);
   border: 1px solid var(--brd);
   border-radius: var(--radius);
+  box-shadow: var(--lift);
 }
 
 button {
@@ -105,15 +120,25 @@ button {
   background: var(--srf);
   border: 1px solid var(--brd);
   border-radius: var(--radius);
+  box-shadow: var(--lift);
   cursor: pointer;
+  transition: transform 100ms ease-out, box-shadow 150ms ease-out;
 }
 
+button:active { transform: scale(0.97); }
+
+/* The one button meant to look like the primary action: an accent-tinted
+   glow standing in for elevation, since --lift's shadow is tuned for --srf
+   and would vanish against the bright fill here. */
 button[type="submit"] {
   color: var(--bg);
   background: var(--acc);
   border-color: var(--acc);
   font-weight: 600;
+  box-shadow: 0 4px 20px -4px rgba(249, 115, 22, 0.45);
 }
+
+button[type="submit"]:hover { box-shadow: 0 6px 24px -4px rgba(249, 115, 22, 0.55); }
 
 :is(button, input):focus-visible {
   outline: 2px solid var(--acc);
@@ -177,8 +202,13 @@ input[type="checkbox"] {
   background: var(--srf);
   border: 1px solid var(--brd);
   border-radius: var(--radius);
+  box-shadow: var(--lift);
   cursor: pointer;
+  transition: transform 100ms ease-out, box-shadow 150ms ease-out, border-color 150ms ease-out;
 }
+
+#strategies label:hover { border-color: var(--dim); }
+#strategies label:active { transform: scale(0.97); }
 
 #strategies input {
   position: absolute;
@@ -187,10 +217,13 @@ input[type="checkbox"] {
   opacity: 0;
 }
 
+/* Same accent glow as the Start button, at roughly a third of the intensity:
+   the active strategy is the next-most-important thing on the setup screen. */
 #strategies label:has(input:checked) {
   color: var(--bg);
   background: var(--acc);
   border-color: var(--acc);
+  box-shadow: 0 3px 14px -3px rgba(249, 115, 22, 0.4);
 }
 
 #strategies label:has(input:focus-visible) {
@@ -231,8 +264,8 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
+/* :active is the generic button rule -- .preset-row button is one. */
 .preset-row button:hover { border-color: var(--dim); }
-.preset-row button:active { transform: scale(0.97); }
 
 /* Work/rest in seconds, under the name -- only Intervals' three presets have
    a canonical pair to show. */
@@ -280,11 +313,18 @@ input[type="checkbox"] {
    because it is the largest thing on screen and the athlete is not aiming
    carefully. Reset to plain text and re-enable pointer affordance only when
    JS marks it interactive. */
+/* A faint ambient glow year-round, intensifying with state below -- the
+   digits are the one thing on this screen meant to hold the eye, and flat
+   text reads as unstyled next to the shadowed surfaces around it. */
 #seconds {
   margin: 0;
   padding: 0;
   border: 0;
   background: none;
+  /* #seconds is a <button>, so without this it inherits the generic button
+     rule's --lift shadow -- a grey chip's edge-lift drawn around text that
+     has neither an edge nor a chip. */
+  box-shadow: none;
   font-family: inherit;
   font-size: var(--text-huge);
   font-weight: 200;
@@ -292,6 +332,7 @@ input[type="checkbox"] {
   font-variant-numeric: tabular-nums;
   color: inherit;
   cursor: default;
+  text-shadow: 0 0 80px rgba(239, 239, 239, 0.12);
 }
 
 /* A button with every default reset looks identical to plain text, and a
@@ -307,14 +348,17 @@ input[type="checkbox"] {
   box-shadow: inset 0 0 0 2px var(--dim);
 }
 
-#seconds:not(:disabled):active { transform: scale(0.97); }
+/* :active is the generic button rule -- disabled buttons never receive it. */
 
 #seconds:focus-visible {
   outline: 2px solid var(--acc);
   outline-offset: 4px;
 }
 
-#seconds.warn { color: var(--acc); }
+#seconds.warn {
+  color: var(--acc);
+  text-shadow: 0 0 80px rgba(249, 115, 22, 0.4);
+}
 
 /* The 0.9 line height above is tuned to digits. An emoji glyph is taller than
    that box, so without a correction here the arm overlaps the line below.
@@ -322,6 +366,7 @@ input[type="checkbox"] {
 #seconds.done {
   color: var(--ok);
   line-height: 1.25;
+  text-shadow: 0 0 80px rgba(74, 222, 128, 0.35);
 }
 
 #round-label {
