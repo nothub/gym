@@ -190,7 +190,7 @@ test("switching to Tabata reveals nothing extra, but Custom reveals work and res
     await page.goto("/");
 
     await expect(page.locator("#custom-fields")).toBeHidden();
-    await expect(page.locator("#count-label")).toHaveText("Cycles");
+    await expect(page.locator("#count-label")).toHaveText("🔁 Cycles");
 
     await preset(page, "tabata");
     await expect(page.locator("#custom-fields")).toBeHidden();
@@ -264,8 +264,9 @@ test("RFT: the countdown shows elapsed time and ends on the target round", async
     await page.locator("#seconds").click();
     // Same as above: the tap itself is silent, the render waits for a frame.
     await page.clock.runFor(50);
-    await expect(page.locator("#phase")).toHaveText("Done");
-    // The result IS the clock: no separate readout, the countdown becomes it.
+    // Flag on the phase label, digits stay bare: elapsed time is RFT's actual
+    // result, and --text-huge has no room for a glyph beside it.
+    await expect(page.locator("#phase")).toHaveText("🏁 Done");
     await expect(page.locator("#seconds")).toHaveText("1:05");
     await expect(page.locator("#round-label")).toHaveText("2 rounds");
 });

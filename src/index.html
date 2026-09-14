@@ -417,8 +417,11 @@ noscript p {
 
     <fieldset id="cues">
       <legend class="sr-only">Cues</legend>
-      <label><input id="cue-sound" type="checkbox" checked> Sound</label>
-      <label><input id="cue-buzz" type="checkbox" checked> Buzz</label>
+      <label><input id="cue-sound" type="checkbox" checked> 🔔 Sound</label>
+      <!-- 📳 rather than one of the salvaged set: none of those mean
+           vibration, and an unmatched pair next to a labelled one reads as
+           an oversight rather than a choice. -->
+      <label><input id="cue-buzz" type="checkbox" checked> 📳 Buzz</label>
     </fieldset>
 
     <button type="submit">Start</button>
@@ -738,10 +741,19 @@ let lastSecond = null;
 let lastRound = null;
 let lastPhase = null;
 
+// A glyph for Intervals and AMRAP's finish, since neither has a result to put
+// in the huge digit slot -- the round count already lives in round-label.
+// RFT does have a result there (elapsed time), so it keeps its digits and
+// gets its flag on the phase label instead: --text-huge is sized for a bare
+// glyph or bare digits, and "🏁 4:32" at that size runs off the viewport.
+function doneGlyph(config) {
+  return config.strategy === "amrap" ? "⚡" : "💪";
+}
+
 function render(state, secs, config) {
   if (state.phase === "done") {
-    el.phase.textContent = "Done";
-    el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : "💪";
+    el.phase.textContent = config.strategy === "rft" ? "🏁 Done" : "Done";
+    el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : doneGlyph(config);
     el.seconds.className = "done";
     el.roundLabel.textContent = config.strategy === "intervals"
       ? plural(config.intervalCycles, "cycle")
@@ -888,7 +900,7 @@ function currentPreset() {
 function countLabelFor(preset) {
   if (preset === "amrap") return "Minutes";
   if (preset === "rft") return "Rounds";
-  return "Cycles";
+  return "🔁 Cycles";
 }
 
 function persistSetup() {

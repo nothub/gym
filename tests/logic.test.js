@@ -349,7 +349,9 @@ async function run({
                 t.fn();
             });
         if (stopAt === null) {
-            if (doneAt === null && els.phase.textContent === "Done") doneAt = now;
+            // RFT's phase reads "🏁 Done", not "Done" -- match the suffix so
+            // completion detection still works for it.
+            if (doneAt === null && els.phase.textContent.endsWith("Done")) doneAt = now;
             if (doneAt !== null && now - doneAt > 1000) break;
         }
     }
@@ -518,7 +520,10 @@ Deno.test("Custom reveals the work/rest fields; named presets and AMRAP/RFT hide
 });
 
 Deno.test("the count field is relabelled per strategy", async () => {
-    const labels = { emom: "Cycles", e2mom: "Cycles", tabata: "Cycles", custom: "Cycles", amrap: "Minutes", rft: "Rounds" };
+    const labels = {
+        emom: "🔁 Cycles", e2mom: "🔁 Cycles", tabata: "🔁 Cycles", custom: "🔁 Cycles",
+        amrap: "Minutes", rft: "Rounds",
+    };
     for (const [preset, label] of Object.entries(labels)) {
         const { els } = await run({ preset, count: 1, stopAt: 0 });
         strictEqual(els["count-label"].textContent, label, preset);
@@ -535,6 +540,9 @@ Deno.test("AMRAP counts down a fixed window and reports rounds by tap", async ()
     });
     strictEqual(els.phase.textContent, "Done");
     strictEqual(els["round-label"].textContent, "2 rounds");
+    // AMRAP's score is the round count, which round-label already carries --
+    // the glyph marks the finish, not a result, so it differs from RFT's.
+    strictEqual(els.seconds.textContent, "⚡");
 });
 
 Deno.test("AMRAP cues the start and the finish, never an intermediate boundary", async () => {
@@ -589,8 +597,9 @@ Deno.test("RFT counts up and ends on the target tap, not on elapsed time", async
         count: 3,
         tapAt: [10_000 + 5_000, 10_000 + 12_000, 10_000 + 20_000],
     });
-    strictEqual(els.phase.textContent, "Done");
-    // Final result is the clock, not the emoji -- elapsed time is RFT's score.
+    // Flag on the phase label, digits stay bare: elapsed time is RFT's actual
+    // score, and --text-huge has no room for a glyph beside it.
+    strictEqual(els.phase.textContent, "🏁 Done");
     strictEqual(els.seconds.textContent, "0:20");
     strictEqual(els["round-label"].textContent, "3 rounds");
 });
