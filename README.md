@@ -60,25 +60,6 @@ never written to.
 Pushing to `trunk` runs the suite and deploys `dist/` to GitHub Pages if it
 passes. Pull requests run the suite without deploying.
 
-## Why version.js is JavaScript and not a text file
-
-A commit cannot contain its own hash, so the build id has to be stamped after
-the commit exists, at deploy time.
-
-A service worker only reinstalls when its own bytes change. If the build id sat
-in a plain text file that the worker fetched, deploying a new one would change
-nothing: the old worker would keep serving the old cache indefinitely. Scripts
-pulled in with `importScripts()` are inside that byte comparison, so
-`version.js` changing is what triggers the update.
-
-The page loads the same file with a `<script>` tag. `self` is the window in a
-page and the global scope in a worker, so one file serves both, and the footer
-link and the cache name cannot disagree about which build is running.
-
-Registration passes `updateViaCache: "none"`. The HTTP cache is still consulted
-for imported scripts, so without it a stale `version.js` would hold updates
-back for as long as the host's max-age.
-
 ## Notes
 
 Safari on iOS has never implemented the Vibration API, so the buzz checkbox
