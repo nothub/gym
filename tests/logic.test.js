@@ -134,7 +134,7 @@ async function run({
             "timer", "phase", "seconds", "round-label",
             "pause", "reset", "live", "strategies",
             "intervals-presets", "amrap-presets", "rft-presets",
-            "cues", "cue-sound", "cue-buzz", "build",
+            "cues", "cue-sound", "cue-buzz", "build", "install", "install-sep",
         ]
     ) {
         els[id] = makeNumberEl(id);

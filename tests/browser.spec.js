@@ -192,6 +192,40 @@ test("links to the repository and the build without navigating away", async ({ p
     }
 });
 
+test("the install button waits for the browser to offer an install, and goes after one use", async ({ page }) => {
+    await page.goto("/");
+
+    // Nothing offered yet: a button that cannot install anything must not be
+    // on screen, which is also the permanent state on every engine that never
+    // fires this event.
+    await expect(page.locator("#install")).toBeHidden();
+    await expect(page.locator("#install-sep")).toBeHidden();
+
+    // Chromium fires beforeinstallprompt only for an app it judges installable
+    // and not already installed, which a throwaway test profile on 127.0.0.1
+    // is not. Synthesising it drives the page's own handler down the same path
+    // a real offer would.
+    await page.evaluate(() => {
+        window.__prompted = 0;
+        const offer = new Event("beforeinstallprompt");
+        offer.prompt = () => {
+            window.__prompted++;
+            return Promise.resolve({ outcome: "accepted" });
+        };
+        window.dispatchEvent(offer);
+    });
+    await expect(page.locator("#install")).toBeVisible();
+    await expect(page.locator("#install-sep")).toBeVisible();
+
+    await page.locator("#install").click();
+    expect(await page.evaluate(() => window.__prompted)).toBe(1);
+
+    // The event is single-use: prompting it twice throws, so the button has to
+    // leave rather than sit there offering a dead second go.
+    await expect(page.locator("#install")).toBeHidden();
+    await expect(page.locator("#install-sep")).toBeHidden();
+});
+
 test("never scrolls horizontally", async ({ page }) => {
     await page.goto("/");
     await start(page);

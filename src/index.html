@@ -430,16 +430,27 @@ footer {
   font-size: var(--text-sm);
 }
 
-footer a {
+footer :is(a, button) {
   color: var(--dim);
   text-decoration: none;
 }
 
-footer a:hover { color: var(--txt); }
+footer :is(a, button):hover { color: var(--txt); }
 
-footer a:focus-visible {
+footer :is(a, button):focus-visible {
   outline: 2px solid var(--acc);
   outline-offset: 2px;
+}
+
+/* Strips the surface, border and padding every other button here wants: this
+   one sits in a line of text and reads as a third footer link, not a control
+   floating in the footer. */
+#install {
+  padding: 0;
+  font-size: inherit;
+  background: none;
+  border: 0;
+  box-shadow: none;
 }
 
 [hidden] { display: none !important; }
@@ -547,6 +558,11 @@ noscript p {
   <a href="https://github.com/nothub/gym-timer" target="_blank" rel="noopener noreferrer">nothub/gym-timer</a>
   <span aria-hidden="true">·</span>
   <a id="build" href="https://github.com/nothub/gym-timer/commits/trunk" target="_blank" rel="noopener noreferrer">dev</a>
+  <!-- Revealed only once the browser has offered an install to open. Starts
+       hidden because on most engines that offer never comes: see the
+       beforeinstallprompt handler. -->
+  <span id="install-sep" aria-hidden="true" hidden>·</span>
+  <button id="install" type="button" hidden>Install</button>
 </footer>
 
 <p id="live" class="sr-only" aria-live="polite"></p>
@@ -586,6 +602,8 @@ const el = {
   cueSound: document.getElementById("cue-sound"),
   cueBuzz: document.getElementById("cue-buzz"),
   build: document.getElementById("build"),
+  install: document.getElementById("install"),
+  installSep: document.getElementById("install-sep"),
 };
 
 /* ---------- strategies ---------- */
@@ -1169,6 +1187,45 @@ if ("serviceWorker" in navigator && window.isSecureContext) {
     navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {});
   });
 }
+
+// Offline is not what this gates -- the service worker above gives that to
+// every engine. This is installing as a standalone app, and only Chromium lets
+// a page ask for it: beforeinstallprompt is Chromium-only, and fires only for
+// an app meeting its install criteria and not already installed.
+//
+// Installing is still possible elsewhere, just not from here. iOS Safari puts
+// it in the share sheet as "Add to Home Screen" and Firefox on Android in its
+// own menu, neither reachable by any API; Firefox on desktop dropped installing
+// entirely. So the button is revealed by the event rather than shown and wired
+// up hopefully: where the offer never comes, no button could have opened one.
+let installPrompt = null;
+
+window.addEventListener("beforeinstallprompt", (e) => {
+  // Suppresses Chromium's own install infobar, which otherwise covers the
+  // timer, in favour of the footer button.
+  e.preventDefault();
+  installPrompt = e;
+  el.install.hidden = false;
+  el.installSep.hidden = false;
+});
+
+el.install.addEventListener("click", () => {
+  if (!installPrompt) return;
+  // Single-use whichever way it is answered: a prompted event cannot be
+  // prompted again, so the button goes rather than linger offering a dead
+  // second go. Chromium fires a fresh event if it wants to offer again.
+  const offer = installPrompt;
+  installPrompt = null;
+  el.install.hidden = true;
+  el.installSep.hidden = true;
+  offer.prompt();
+});
+
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+  el.install.hidden = true;
+  el.installSep.hidden = true;
+});
 </script>
 
 </body>
