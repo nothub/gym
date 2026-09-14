@@ -432,6 +432,50 @@ test("the tap hint appears with the target, and costs no layout shift doing it",
     expect((await page.locator("#controls").boundingBox()).y).toBe(controlsBefore);
 });
 
+test("the countdown presses under a finger only where a press does something", async ({ page }) => {
+    // Chromium matches :active on a *disabled* button, so "it is disabled" is
+    // not on its own enough to stop the countdown depressing like a control.
+    // The guard is button:not(:disabled):active, and this is what holds it.
+    const pressedTransform = async (strategy, toDone) => {
+        await page.clock.install();
+        await page.goto("/");
+        // Always set it, Intervals included: the strategy persists, so a later
+        // reload restores whichever one the previous case left behind.
+        await page.locator(`input[name="strategy"][value="${strategy}"]`).check();
+        await page.locator("#count").fill("1");
+        await start(page);
+        await page.clock.runFor(10_500); // clear prep
+        if (toDone) {
+            if (strategy === "rft") await page.locator("#seconds").click();
+            else await page.clock.fastForward(70_000);
+            await page.clock.runFor(100);
+        }
+        // The press is a 100ms transition, and the mock clock freezes it
+        // mid-flight -- it has to run on the real one to reach its end state.
+        await page.clock.resume();
+        await page.waitForTimeout(200);
+
+        const el = page.locator("#seconds");
+        const box = await el.boundingBox();
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.waitForTimeout(200);
+        const t = await el.evaluate((n) => getComputedStyle(n).transform);
+        await page.mouse.up();
+        return t;
+    };
+
+    const scaled = "matrix(0.97, 0, 0, 0.97, 0, 0)";
+    // RFT mid-workout is the one place a tap records anything.
+    expect(await pressedTransform("rft", false)).toBe(scaled);
+    // Everywhere else the countdown is a readout, and the finish glyph is not
+    // a control at all.
+    for (const [strategy, toDone] of [["intervals", false], ["amrap", false],
+                                      ["intervals", true], ["amrap", true], ["rft", true]]) {
+        expect(await pressedTransform(strategy, toDone), `${strategy}/${toDone ? "done" : "work"}`).toBe("none");
+    }
+});
+
 test("Intervals: the countdown is not a tap target", async ({ page }) => {
     await page.goto("/");
     await start(page);

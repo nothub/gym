@@ -133,7 +133,12 @@ button {
   transition: transform 100ms ease-out, box-shadow 150ms ease-out;
 }
 
-button:active { transform: scale(0.97); }
+/* :not(:disabled) is load-bearing, not belt and braces. Chromium matches
+   :active on a disabled button, so without this the countdown presses under a
+   finger in Intervals and AMRAP, where it is a plain readout, and on every
+   finish screen, where the glyph is not a control at all. Press feedback
+   belongs only where a press does something: RFT's work phase. */
+button:not(:disabled):active { transform: scale(0.97); }
 
 /* The one button meant to look like the primary action: an accent-tinted
    glow standing in for elevation, since --lift's shadow is tuned for --srf
