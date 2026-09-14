@@ -1,6 +1,6 @@
 {
   "name": "Gym Timer",
-  "short_name": "Timer",
+  "short_name": "Gym Timer",
   "description": "Interval, AMRAP and RFT timer for conditioning work.",
   "start_url": ".",
   "scope": ".",
