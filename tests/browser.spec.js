@@ -485,7 +485,7 @@ test("serves the app from cache with the network cut", async ({ page, context })
     await context.setOffline(true);
     await page.reload();
 
-    await expect(page.locator("h1")).toHaveText("Timer");
+    await expect(page.locator("h1")).toHaveText("Gym Timer");
     await expect(page.locator("#count")).toBeVisible();
 
     // version.js is precached for this: without it in ASSETS the footer would
@@ -509,7 +509,7 @@ test("survives a tracking query string offline", async ({ page, context }) => {
     // the query misses the cached entry and the page fails to load.
     await page.goto("/?utm_source=somewhere");
 
-    await expect(page.locator("h1")).toHaveText("Timer");
+    await expect(page.locator("h1")).toHaveText("Gym Timer");
     await context.setOffline(false);
 });
 
