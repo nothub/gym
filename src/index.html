@@ -478,11 +478,10 @@ function render(state, secs, config) {
     const rft = config.strategy === "rft";
     el.phase.textContent = "Done";
     el.seconds.textContent = DONE_GLYPH;
-    // Shrunk for RFT, where the glyph shares the screen with the table of
-    // round times rather than being the whole of it. Same element either way:
-    // it already sits between the label and the list, which is where the mark
-    // belongs, so nothing new is needed to put it there.
-    el.seconds.className = rft ? "done compact" : "done";
+    // The glyph sits between the label and RFT's table because #seconds is
+    // already in that slot; nothing new is needed to put it there, and it is
+    // the same size on every finish.
+    el.seconds.className = "done";
     // What was actually done. Intervals and AMRAP restate what was set, since
     // the clock delivered exactly that; RFT reports its rounds and the total
     // it is scored on, with the per-round times listed underneath.

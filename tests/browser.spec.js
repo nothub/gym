@@ -490,8 +490,8 @@ test("the RFT finish fits its glyph and its whole table on a phone", async ({ pa
         await page.clock.runFor(50);
     }
 
-    // Ten rows plus a glyph is the case that decides whether the glyph could
-    // stay at --text-huge. It could not, hence .compact -- and the list scrolls
+    // Ten rows plus a glyph is the crowded case: the finish glyph is smaller
+    // than the running digits everywhere, and past the cap the list scrolls
     // rather than growing, so the controls stay reachable either way.
     await expect(page.locator("#laps li")).toHaveCount(10);
     const glyph = await page.locator("#seconds").boundingBox();

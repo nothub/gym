@@ -327,15 +327,6 @@ input[type="checkbox"] {
 /* RFT's per-round times. Capped in height and scrolled rather than allowed to
    grow: the round count goes to 99, and a list that long would push the phase
    label and the controls off a phone entirely. */
-/* The finish glyph when a table shares the screen with it: still the largest
-   thing above the fold, but no longer the whole of it. --text-huge is sized to
-   be read across a gym from a phone on the floor, which a screen that also has
-   to carry five to ninety-nine rows cannot afford. */
-#seconds.compact {
-  font-size: clamp(3rem, 16vmin, 6rem);
-  line-height: 1;
-}
-
 #laps {
   margin: 0;
   padding: 0;
@@ -448,9 +439,17 @@ input[type="checkbox"] {
 /* The 0.9 line height above is tuned to digits. An emoji glyph is taller than
    that box, so without a correction here the arm overlaps the line below.
    The colour only shows if the platform substitutes a monochrome glyph. */
+/* The finish glyph, at every strategy's finish. Smaller than the running
+   digits on purpose: --text-huge is sized to be read across a gym from a phone
+   on the floor, which is what a clock mid-workout has to do and what a mark
+   you are standing over afterwards does not. */
 #seconds.done {
-  color: var(--ok);
+  font-size: clamp(3rem, 16vmin, 6rem);
+  /* Not 1: an emoji draws taller than its em square and spills into the line
+     below at that ratio -- onto RFT's first lap row, or onto "Done". The base
+     rule's 0.9 is tuned for digits, which do not. */
   line-height: 1.25;
+  color: var(--ok);
   text-shadow: 0 0 80px rgba(74, 222, 128, 0.35);
 }
 
