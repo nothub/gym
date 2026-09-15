@@ -274,7 +274,7 @@ test("counts a real minute down to the flash at the cycle boundary", async ({ pa
     await start(page);
 
     await page.clock.runFor(9_000); // one second of prep left
-    await expect(page.locator("#seconds")).toHaveText("1");
+    await expect(page.locator("#seconds")).toHaveText("0:01");
     await expect(page.locator("#seconds")).toHaveClass("warn");
 
     await page.clock.runFor(1_100); // over the line into cycle 1
@@ -282,13 +282,34 @@ test("counts a real minute down to the flash at the cycle boundary", async ({ pa
     await expect(page.locator("#round-label")).toHaveText("Cycle 1 / 2");
 });
 
+test("the setup fields are styled by the app, not left to the browser", async ({ page }) => {
+    await page.goto("/");
+
+    // The rule selected on input[type="number"] and silently stopped matching
+    // when the durations became text, leaving three bare native fields that
+    // ran past the form's edge. Every geometry test still passed: #setup keeps
+    // its width whatever its children do, which is the same blind spot the
+    // strategy row had.
+    const form = await page.locator("#setup").boundingBox();
+    for (const id of ["#work-secs", "#rest-secs", "#count"]) {
+        const styled = await page.locator(id).evaluate((n) => {
+            const s = getComputedStyle(n);
+            return { bg: s.backgroundColor, align: s.textAlign };
+        });
+        expect(styled.align, id).toBe("center");
+        expect(styled.bg, id).toBe("rgb(26, 26, 26)"); // --srf
+        const box = await page.locator(id).boundingBox();
+        expect(box.x + box.width, id).toBeLessThanOrEqual(form.x + form.width + 1);
+    }
+});
+
 test("Intervals shows work and rest without needing a preset first", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.locator('input[name="strategy"][value="intervals"]')).toBeChecked();
     await expect(page.locator("#interval-fields")).toBeVisible();
-    await expect(page.locator("#work-secs")).toHaveValue("60");
-    await expect(page.locator("#rest-secs")).toHaveValue("0");
+    await expect(page.locator("#work-secs")).toHaveValue("1:00");
+    await expect(page.locator("#rest-secs")).toHaveValue("0:00");
 });
 
 test("a preset fills the fields but never switches which strategy is active", async ({ page }) => {
@@ -296,8 +317,8 @@ test("a preset fills the fields but never switches which strategy is active", as
 
     await intervalsPreset(page, "tabata");
     await expect(page.locator('input[name="strategy"][value="intervals"]')).toBeChecked();
-    await expect(page.locator("#work-secs")).toHaveValue("20");
-    await expect(page.locator("#rest-secs")).toHaveValue("10");
+    await expect(page.locator("#work-secs")).toHaveValue("0:20");
+    await expect(page.locator("#rest-secs")).toHaveValue("0:10");
     await expect(page.locator("#count")).toHaveValue("8");
 });
 
@@ -313,7 +334,7 @@ test("switching strategy swaps the preset row and dims/re-enables work and rest"
     await expect(page.locator("#interval-fields")).toHaveClass("inactive");
     await expect(page.locator("#work-secs")).toBeDisabled();
     await expect(page.locator("#rest-secs")).toBeDisabled();
-    await expect(page.locator("#count-label")).toHaveText("⏳ Minutes");
+    await expect(page.locator("#count-label")).toHaveText("⏳ Window");
 
     await strategy(page, "rft");
     await expect(page.locator("#amrap-presets")).toBeHidden();
@@ -370,7 +391,8 @@ test("AMRAP and RFT presets fill the single count field", async ({ page }) => {
 
     await strategy(page, "amrap");
     await amrapPreset(page, 15);
-    await expect(page.locator("#count")).toHaveValue("15");
+    // The attribute is minutes, matching the label; the field reads MM:SS.
+    await expect(page.locator("#count")).toHaveValue("15:00");
 
     await strategy(page, "rft");
     await rftPreset(page, 10);
@@ -382,9 +404,9 @@ test("each alias chip shows its own work/rest under its name", async ({ page }) 
 
     // Populated from the same INTERVALS_PRESETS object buildConfig() reads, so
     // the chip cannot claim numbers the preset does not actually use.
-    await expect(page.locator("#detail-emom")).toHaveText("60/0");
-    await expect(page.locator("#detail-e2mom")).toHaveText("120/0");
-    await expect(page.locator("#detail-tabata")).toHaveText("20/10");
+    await expect(page.locator("#detail-emom")).toHaveText("1:00 / 0:00");
+    await expect(page.locator("#detail-e2mom")).toHaveText("2:00 / 0:00");
+    await expect(page.locator("#detail-tabata")).toHaveText("0:20 / 0:10");
 });
 
 test("AMRAP: the countdown is never a tap target, and reports its window", async ({ page }) => {
@@ -392,7 +414,7 @@ test("AMRAP: the countdown is never a tap target, and reports its window", async
     await page.goto("/");
 
     await strategy(page, "amrap");
-    await page.locator("#count").fill("1"); // 1-minute window
+    await page.locator("#count").fill("1:00"); // the window is a duration now
     await start(page);
 
     const seconds = page.locator("#seconds");
@@ -442,7 +464,8 @@ test("the countdown presses under a finger only where a press does something", a
         // Always set it, Intervals included: the strategy persists, so a later
         // reload restores whichever one the previous case left behind.
         await page.locator(`input[name="strategy"][value="${strategy}"]`).check();
-        await page.locator("#count").fill("1");
+        // AMRAP's count field is a duration; the other two hold a tally.
+        await page.locator("#count").fill(strategy === "amrap" ? "1:00" : "1");
         await start(page);
         await page.clock.runFor(10_500); // clear prep
         if (toDone) {
@@ -659,13 +682,13 @@ test("strategy and count persist without touching the url", async ({ page }) => 
     const url = page.url();
 
     await strategy(page, "amrap");
-    await page.locator("#count").fill("4");
+    await page.locator("#count").fill("4:00");
     // Typing used to rewrite the address bar. All state lives in one place now.
     expect(page.url()).toBe(url);
 
     await page.reload();
     await expect(page.locator('input[name="strategy"][value="amrap"]')).toBeChecked();
-    await expect(page.locator("#count")).toHaveValue("4");
+    await expect(page.locator("#count")).toHaveValue("4:00");
     expect(page.url()).toBe(url);
 });
 

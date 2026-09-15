@@ -54,19 +54,23 @@
 
     <div id="interval-fields">
       <div>
-        <label for="work-secs">🏋️ Work (s)</label>
-        <input id="work-secs" type="number" inputmode="numeric" min="1" max="600" step="1" value="60">
+        <label for="work-secs">🏋️ Work</label>
+        <!-- text, not number: "1:30" is not a number. inputmode keeps the
+             numeric keypad, and bare digits read as seconds, so every duration
+             stays reachable on a keypad with no colon on it. -->
+        <input id="work-secs" type="text" inputmode="numeric" value="1:00">
       </div>
       <div>
-        <label for="rest-secs">😴 Rest (s)</label>
-        <input id="rest-secs" type="number" inputmode="numeric" min="0" max="600" step="1" value="0">
+        <label for="rest-secs">😴 Rest</label>
+        <input id="rest-secs" type="text" inputmode="numeric" value="0:00">
       </div>
     </div>
 
     <div>
       <label for="count" id="count-label">Cycles</label>
-      <input id="count" name="count" type="number" inputmode="numeric"
-             min="1" max="99" step="1" value="10" required>
+      <!-- A count for Intervals and RFT, a duration for AMRAP, which is why it
+           is text: the active strategy decides how it parses. -->
+      <input id="count" name="count" type="text" inputmode="numeric" value="10" required>
     </div>
 
     <fieldset id="cues">
@@ -164,6 +168,24 @@ const el = {
 // on screen for Intervals; there is no separate "Custom" to hide them behind.
 const STRATEGIES = ["intervals", "amrap", "rft"];
 
+// Durations are seconds everywhere inside the app and MM:SS everywhere on it.
+// Bare digits parse as seconds, so a numeric keypad -- which has no colon --
+// still reaches every value: 90 and 1:30 are one duration typed two ways.
+function parseDuration(text) {
+  const t = String(text).trim();
+  const mmss = t.match(/^(\d+):([0-5]\d)$/);
+  if (mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
+  // Seconds alone, unbounded, so "90" and "720" both work. Rejecting "1:75"
+  // is the reason the branch above pins the seconds field to two digits.
+  return /^\d+$/.test(t) ? Number(t) : NaN;
+}
+
+function formatDuration(totalSecs) {
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
 const INTERVALS_PRESETS = {
   emom: { work: 60, rest: 0, cycles: 10 },
   e2mom: { work: 120, rest: 0, cycles: 6 },
@@ -179,14 +201,14 @@ const INTERVALS_PRESETS = {
 const AMRAP_PRESETS = [10, 15, 20];
 const RFT_PRESETS = [3, 5, 10];
 
-const DEFAULT_COUNT = { intervals: 10, amrap: 12, rft: 5 };
+const DEFAULT_COUNT = { intervals: 10, amrap: 12 * 60, rft: 5 };
 
 // The work/rest shown under each alias's name comes from the same object the
 // clock reads, not a second copy in the markup -- so the chip cannot end up
 // claiming numbers the preset no longer uses.
 for (const [key, p] of Object.entries(INTERVALS_PRESETS)) {
   const detail = document.getElementById(`detail-${key}`);
-  if (detail) detail.textContent = `${p.work}/${p.rest}`;
+  if (detail) detail.textContent = `${formatDuration(p.work)} / ${formatDuration(p.rest)}`;
 }
 
 /* ---------- preferences ---------- */
@@ -204,8 +226,23 @@ const canVibrate = typeof navigator.vibrate === "function";
 // The checkboxes are the state; there is nothing to mirror them into.
 const wantSound = () => el.cueSound.checked;
 const wantBuzz = () => canVibrate && el.cueBuzz.checked;
+const MAX_WORK_SECS = 600;         // 10:00
+const MAX_WINDOW_SECS = 99 * 60;   // 99:00, the same reach MAX_COUNT has
 const validCount = (v) => Number.isInteger(v) && v >= 1 && v <= MAX_COUNT;
-const validSeconds = (v, min) => Number.isInteger(v) && v >= min && v <= 600;
+const validSeconds = (v, min) => Number.isInteger(v) && v >= min && v <= MAX_WORK_SECS;
+const validWindow = (v) => Number.isInteger(v) && v >= 1 && v <= MAX_WINDOW_SECS;
+
+// One field, two kinds of value: AMRAP's is a duration, the other two are
+// tallies. A tally is digits and nothing else, so "1:30" is refused for a
+// cycle count rather than quietly becoming 90 of them.
+const countIsDuration = (strategy) => strategy === "amrap";
+const parseTally = (t) => (/^\d+$/.test(String(t).trim()) ? Number(String(t).trim()) : NaN);
+const readCount = (strategy) =>
+  countIsDuration(strategy) ? parseDuration(el.count.value) : parseTally(el.count.value);
+const validForStrategy = (strategy, v) =>
+  countIsDuration(strategy) ? validWindow(v) : validCount(v);
+const showCount = (strategy, v) =>
+  countIsDuration(strategy) ? formatDuration(v) : String(v);
 
 function loadPrefs() {
   // localStorage throws rather than returning null when storage is blocked.
@@ -411,11 +448,11 @@ function tickable(state, config) {
 
 // RFT's remaining counts up without bound, so its big-digit display is a
 // clock face rather than the bare second-count the other two strategies use.
+// Floors, which is what a stopwatch counting up wants: 0:00 until a second has
+// really passed. A countdown wants the opposite and formats its already-ceiled
+// second count through formatDuration instead.
 function formatClock(ms) {
-  const totalSecs = Math.floor(ms / 1000);
-  const mins = Math.floor(totalSecs / 60);
-  const secs = totalSecs % 60;
-  return `${mins}:${String(secs).padStart(2, "0")}`;
+  return formatDuration(Math.floor(ms / 1000));
 }
 
 const clock = {
@@ -497,7 +534,11 @@ function render(state, secs, config) {
   } else {
     el.phase.textContent = state.phase === "prep" ? "Get ready"
       : state.phase === "rest" ? "Rest" : "Work";
-    el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : String(secs);
+    // MM:SS on every strategy. RFT counts up and floors; the others count down
+    // and are already ceiled into `secs`, so each formats the value it wants.
+    el.seconds.textContent = config.strategy === "rft"
+      ? formatClock(state.remaining)
+      : formatDuration(secs);
     el.seconds.className = tickable(state, config) && secs <= 3 ? "warn" : "";
     // U+00A0, matching the markup's &nbsp;. A plain space is collapsible
     // whitespace, so the paragraph would lay out at zero height and the whole
@@ -672,7 +713,10 @@ function currentStrategy() {
 // remembers its own value independently -- switching to AMRAP and back must
 // not lose Intervals' cycle count, so each gets its own storage key.
 function countKeyFor(strategy) {
-  if (strategy === "amrap") return "amrapMinutes";
+  // Not "amrapMinutes": this holds seconds now, and a stored 12 read back as
+  // 12 seconds would silently shorten somebody's workout twelve-fold. A new
+  // key leaves the old one unread and lets the default take over.
+  if (strategy === "amrap") return "amrapWindowSecs";
   if (strategy === "rft") return "rftRounds";
   return "cycles";
 }
@@ -681,7 +725,7 @@ function countKeyFor(strategy) {
 // repeating it here says nothing the field does not. Each label names what
 // its own number is instead -- a repeat count, a duration, a target.
 function countLabelFor(strategy) {
-  if (strategy === "amrap") return "⏳ Minutes";
+  if (strategy === "amrap") return "⏳ Window";
   if (strategy === "rft") return "🎯 Rounds";
   return "🔁 Cycles";
 }
@@ -705,9 +749,9 @@ function persistSetup() {
   const strategy = currentStrategy();
   savePrefs({
     strategy,
-    workSecs: Math.floor(el.workSecs.valueAsNumber),
-    restSecs: Math.floor(el.restSecs.valueAsNumber),
-    [countKeyFor(strategy)]: Math.floor(el.count.valueAsNumber),
+    workSecs: parseDuration(el.workSecs.value),
+    restSecs: parseDuration(el.restSecs.value),
+    [countKeyFor(strategy)]: readCount(strategy),
   });
 }
 
@@ -715,14 +759,14 @@ function persistSetup() {
 // count or the work/rest fields hold something unusable.
 function buildConfig() {
   const strategy = currentStrategy();
-  const count = Math.floor(el.count.valueAsNumber);
-  if (!validCount(count)) return null;
+  const count = readCount(strategy);
+  if (!validForStrategy(strategy, count)) return null;
 
-  if (strategy === "amrap") return { strategy: "amrap", amrapWindow: count * 60000 };
+  if (strategy === "amrap") return { strategy: "amrap", amrapWindow: count * 1000 };
   if (strategy === "rft") return { strategy: "rft", rftRounds: count };
 
-  const work = Math.floor(el.workSecs.valueAsNumber);
-  const rest = Math.floor(el.restSecs.valueAsNumber);
+  const work = parseDuration(el.workSecs.value);
+  const rest = parseDuration(el.restSecs.value);
   if (!validSeconds(work, 1) || !validSeconds(rest, 0)) return null;
   return { strategy: "intervals", work: work * 1000, rest: rest * 1000, intervalCycles: count };
 }
@@ -745,7 +789,7 @@ el.strategies.addEventListener("change", (e) => {
   showStrategy(strategy);
   const prefs = loadPrefs();
   const stored = prefs[countKeyFor(strategy)];
-  el.count.value = String(validCount(stored) ? stored : DEFAULT_COUNT[strategy]);
+  el.count.value = showCount(strategy, validForStrategy(strategy, stored) ? stored : DEFAULT_COUNT[strategy]);
   savePrefs({ strategy });
 });
 
@@ -756,8 +800,8 @@ el.intervalsPresets.addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-intervals-preset]");
   if (!btn) return;
   const p = INTERVALS_PRESETS[btn.dataset.intervalsPreset];
-  el.workSecs.value = String(p.work);
-  el.restSecs.value = String(p.rest);
+  el.workSecs.value = formatDuration(p.work);
+  el.restSecs.value = formatDuration(p.rest);
   el.count.value = String(p.cycles);
   persistSetup();
 });
@@ -765,7 +809,8 @@ el.intervalsPresets.addEventListener("click", (e) => {
 el.amrapPresets.addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-amrap-preset]");
   if (!btn) return;
-  el.count.value = btn.dataset.amrapPreset;
+  // The attribute stays minutes, matching the button's own label.
+  el.count.value = formatDuration(Number(btn.dataset.amrapPreset) * 60);
   persistSetup();
 });
 
@@ -778,10 +823,28 @@ el.rftPresets.addEventListener("click", (e) => {
 
 // Saved as typed, matching the checkboxes, so nothing depends on pressing Start.
 el.count.addEventListener("input", () => {
-  if (validCount(Math.floor(el.count.valueAsNumber))) persistSetup();
+  const strategy = currentStrategy();
+  if (validForStrategy(strategy, readCount(strategy))) persistSetup();
 });
 el.workSecs.addEventListener("input", persistSetup);
 el.restSecs.addEventListener("input", persistSetup);
+
+// On change rather than input: rewriting "9" to "0:09" while the 0 of "90" is
+// still being typed would fight the caret. Leaving the field is when a part-
+// typed duration becomes a whole one.
+for (const [field, min] of [[el.workSecs, 1], [el.restSecs, 0]]) {
+  field.addEventListener("change", () => {
+    const secs = parseDuration(field.value);
+    // Unreadable input is left exactly as typed. Correcting it to a number
+    // nobody asked for is worse than showing that it was not understood.
+    if (validSeconds(secs, min)) field.value = formatDuration(secs);
+  });
+}
+el.count.addEventListener("change", () => {
+  const strategy = currentStrategy();
+  const v = readCount(strategy);
+  if (validForStrategy(strategy, v)) el.count.value = showCount(strategy, v);
+});
 
 el.cues.addEventListener("change", () => {
   savePrefs({ sound: el.cueSound.checked, buzz: el.cueBuzz.checked });
@@ -812,11 +875,11 @@ function init() {
 
   // Always restored, not just when Intervals is active: they are its own
   // remembered fields, not a per-strategy scratch pad that resets on switch.
-  el.workSecs.value = String(validSeconds(prefs.workSecs, 1) ? prefs.workSecs : 60);
-  el.restSecs.value = String(validSeconds(prefs.restSecs, 0) ? prefs.restSecs : 0);
+  el.workSecs.value = formatDuration(validSeconds(prefs.workSecs, 1) ? prefs.workSecs : 60);
+  el.restSecs.value = formatDuration(validSeconds(prefs.restSecs, 0) ? prefs.restSecs : 0);
 
   const stored = prefs[countKeyFor(strategy)];
-  el.count.value = String(validCount(stored) ? stored : DEFAULT_COUNT[strategy]);
+  el.count.value = showCount(strategy, validForStrategy(strategy, stored) ? stored : DEFAULT_COUNT[strategy]);
 }
 
 init();

@@ -52,6 +52,7 @@ async function run({
     amrapPreset = null,
     rftPreset = null,
     workSecs = null,
+    workSecsText = null, // typed verbatim, for exercising the MM:SS parser
     restSecs = null,
     count = 3,
     tapAt = [],
@@ -382,6 +383,13 @@ async function run({
         els["work-secs"].valueAsNumber = workSecs;
         els["work-secs"].fire("input");
     }
+    if (workSecsText !== null) {
+        els["work-secs"].value = workSecsText;
+        els["work-secs"].fire("input");
+        // What a browser fires when the field is left, which is where the
+        // app normalises "90" into "1:30".
+        els["work-secs"].fire("change");
+    }
     if (restSecs !== null) {
         els["rest-secs"].valueAsNumber = restSecs;
         els["rest-secs"].fire("input");
@@ -568,10 +576,11 @@ Deno.test("typing work and rest directly drives the clock, no preset needed", as
 });
 
 Deno.test("every Intervals preset seeds its canonical work, rest and cycle count", async () => {
+    // Durations read MM:SS in the fields; the presets themselves stay seconds.
     const canonical = {
-        emom: { count: "10", workSecs: "60", restSecs: "0" },
-        e2mom: { count: "6", workSecs: "120", restSecs: "0" },
-        tabata: { count: "8", workSecs: "20", restSecs: "10" },
+        emom: { count: "10", workSecs: "1:00", restSecs: "0:00" },
+        e2mom: { count: "6", workSecs: "2:00", restSecs: "0:00" },
+        tabata: { count: "8", workSecs: "0:20", restSecs: "0:10" },
     };
     for (const [preset, want] of Object.entries(canonical)) {
         const { seeded } = await run({ intervalsPreset: preset, count: 1, stopAt: 0 });
@@ -610,7 +619,7 @@ Deno.test("every strategy's finish reads the same phase label", async () => {
     // it is not a second glyph slot, and RFT alone once filled it with a flag.
     const runs = {
         intervals: await run({ count: 1 }),
-        amrap: await run({ strategy: "amrap", count: 1 }),
+        amrap: await run({ strategy: "amrap", count: 60 }),
         rft: await run({ strategy: "rft", count: 1, tapAt: [PREP_MS + 2_000] }),
     };
     for (const [name, r] of Object.entries(runs)) {
@@ -618,12 +627,45 @@ Deno.test("every strategy's finish reads the same phase label", async () => {
     }
 });
 
+Deno.test("a duration field takes MM:SS or bare seconds, and normalises on blur", async () => {
+    // 90 and 1:30 are the same duration typed two ways, which is what lets a
+    // numeric keypad with no colon on it still reach every value.
+    for (const [typed, shown] of [["90", "1:30"], ["1:30", "1:30"], ["12", "0:12"], ["2:05", "2:05"]]) {
+        const { els } = await run({ workSecsText: typed, count: 1, stopAt: 0 });
+        strictEqual(els["work-secs"].value, shown, `typed ${typed}`);
+    }
+});
+
+Deno.test("a typed duration is the one the clock actually runs", async () => {
+    // Not just how it reads back: one cycle of work typed as "1:30" has to end
+    // 90 s after prep, or the parse is decorative.
+    const { doneAt } = await run({ workSecsText: "1:30", restSecs: 0, count: 1 });
+    ok(
+        doneAt >= PREP_MS + 90_000 && doneAt < PREP_MS + 90_000 + STEP,
+        `finished at ${doneAt}, expected ${PREP_MS + 90_000}`,
+    );
+});
+
+Deno.test("a duration that cannot be read leaves the field alone and refuses to start", async () => {
+    for (const bad of ["", "abc", "1:75", "1:2:3", "-5"]) {
+        const { els } = await run({ workSecsText: bad, count: 1, stopAt: 0 });
+        // Untouched rather than silently corrected to something never asked for.
+        strictEqual(els["work-secs"].value, bad, `typed ${bad}`);
+        // And the workout never starts. Asserted on the setup screen rather
+        // than the timer one: every fake element defaults to hidden = false,
+        // so "timer is not hidden" is the harness's initial state and would
+        // pass whether the app started or not. Hiding setup is something only
+        // a successful start does.
+        strictEqual(els.setup.hidden, false, `typed ${bad}`);
+    }
+});
+
 Deno.test("the count field is relabelled per strategy", async () => {
     const { els: intervals } = await run({ count: 1, stopAt: 0 });
     strictEqual(intervals["count-label"].textContent, "🔁 Cycles");
 
-    const { els: amrap } = await run({ strategy: "amrap", count: 1, stopAt: 0 });
-    strictEqual(amrap["count-label"].textContent, "⏳ Minutes");
+    const { els: amrap } = await run({ strategy: "amrap", count: 60, stopAt: 0 });
+    strictEqual(amrap["count-label"].textContent, "⏳ Window");
 
     const { els: rft } = await run({ strategy: "rft", count: 1, stopAt: 0 });
     strictEqual(rft["count-label"].textContent, "🎯 Rounds");
@@ -632,7 +674,7 @@ Deno.test("the count field is relabelled per strategy", async () => {
 /* ---------- AMRAP ---------- */
 
 Deno.test("AMRAP counts down a fixed window and reports the window", async () => {
-    const { els } = await run({ strategy: "amrap", count: 1 });
+    const { els } = await run({ strategy: "amrap", count: 60 });
     strictEqual(els.phase.textContent, "Done");
     // The window, not a round count: AMRAP scores nothing, so it restates what
     // the clock delivered, the way Intervals restates its cycles.
@@ -643,7 +685,7 @@ Deno.test("AMRAP counts down a fixed window and reports the window", async () =>
 
 Deno.test("AMRAP never makes the countdown tappable, in any phase", async () => {
     for (const [label, stopAt] of [["prep", 5_000], ["work", PREP_MS + 5_000], ["done", null]]) {
-        const { els } = await run({ strategy: "amrap", count: 1, stopAt });
+        const { els } = await run({ strategy: "amrap", count: 60, stopAt });
         strictEqual(els.seconds.disabled, true, `amrap ${label}`);
         strictEqual(els["tap-hint"].hidden, true, `amrap ${label} hint`);
     }
@@ -653,15 +695,16 @@ Deno.test("tapping an AMRAP countdown records nothing", async () => {
     // Nothing should reach recordTap now that the button is inert, but the
     // handler is still attached to it, so assert the guard directly rather
     // than trusting that no path ever fires it.
-    const { els, tap } = await run({ strategy: "amrap", count: 1, stopAt: PREP_MS + 5_000 });
+    const { els, tap } = await run({ strategy: "amrap", count: 60, stopAt: PREP_MS + 5_000 });
     tap();
     tap();
     strictEqual(els["round-label"].textContent, "\u00a0");
 });
 
 Deno.test("the 15-minute AMRAP preset fills the window, not a round count", async () => {
-    const { seeded } = await run({ strategy: "amrap", amrapPreset: 15, count: 1, stopAt: 0 });
-    strictEqual(seeded.count, "15");
+    const { seeded } = await run({ strategy: "amrap", amrapPreset: 15, count: 60, stopAt: 0 });
+    // The field reads MM:SS now, and the preset's attribute is still minutes.
+    strictEqual(seeded.count, "15:00");
 });
 
 Deno.test("the AMRAP window runs exactly as long as it was set", async () => {
@@ -671,7 +714,7 @@ Deno.test("the AMRAP window runs exactly as long as it was set", async () => {
     // all, so a window running long passed the whole tier. Pinning the instant
     // closes both directions in one place.
     for (const minutes of [1, 2]) {
-        const { doneAt } = await run({ strategy: "amrap", count: minutes });
+        const { doneAt } = await run({ strategy: "amrap", count: minutes * 60 });
         const expected = PREP_MS + minutes * 60_000;
         // The loop only looks between frames, so the first frame to report Done
         // is the first one at or after the true end -- never earlier, and never
@@ -684,7 +727,7 @@ Deno.test("the AMRAP window runs exactly as long as it was set", async () => {
 });
 
 Deno.test("AMRAP cues the start and the finish, never an intermediate boundary", async () => {
-    const { beeps } = await run({ strategy: "amrap", count: 1 });
+    const { beeps } = await run({ strategy: "amrap", count: 60 });
     // One "go" at prep's end, then nothing until the fanfare.
     strictEqual(freqs(beeps, 880).length, 1);
     deepStrictEqual(
@@ -694,13 +737,13 @@ Deno.test("AMRAP cues the start and the finish, never an intermediate boundary",
 });
 
 Deno.test("AMRAP ticks the last three seconds of the window", async () => {
-    const { beeps } = await run({ strategy: "amrap", count: 1 });
+    const { beeps } = await run({ strategy: "amrap", count: 60 });
     // Prep's countdown, plus the window's own final three seconds.
     strictEqual(freqs(beeps, 660).length, 6);
 });
 
 Deno.test("AMRAP shows no progress label while it runs, having nothing to count", async () => {
-    const { els } = await run({ strategy: "amrap", count: 5, stopAt: PREP_MS + 6_000 });
+    const { els } = await run({ strategy: "amrap", count: 300, stopAt: PREP_MS + 6_000 });
     // The blank is prep's reserved line kept in place, not an empty string:
     // collapsible whitespace would lay the paragraph out at zero height and
     // jog the centred group. See the U+00A0 in render().
@@ -735,7 +778,7 @@ Deno.test("only RFT's finish shows the table, and the glyph is one size everywhe
 
     // The other two have nothing to list, and are otherwise the same screen.
     for (const strategy of ["intervals", "amrap"]) {
-        const other = await run({ strategy, count: 1 });
+        const other = await run({ strategy, count: strategy === "amrap" ? 60 : 1 });
         strictEqual(other.els.laps.hidden, true, strategy);
         strictEqual(other.els.seconds.className, "done", strategy);
     }
@@ -809,7 +852,7 @@ Deno.test("only RFT carries the tap hint, and only once tapping does something",
 
     // The other two record nothing, so the line leaves the layout entirely.
     for (const strategy of ["intervals", "amrap"]) {
-        const other = await run({ strategy, count: 5, stopAt: PREP_MS + 5_000 });
+        const other = await run({ strategy, count: strategy === "amrap" ? 300 : 5, stopAt: PREP_MS + 5_000 });
         strictEqual(other.els["tap-hint"].hidden, true, strategy);
     }
 });
@@ -841,8 +884,9 @@ Deno.test("strategy, cycles and custom work/rest are restored from storage", asy
     const { initial } = await run({ stored, stopAt: 0 });
     strictEqual(initial.strategy, "intervals");
     strictEqual(initial.count, "7");
-    strictEqual(initial.workSecs, "33");
-    strictEqual(initial.restSecs, "11");
+    // Stored as seconds, shown as MM:SS.
+    strictEqual(initial.workSecs, "0:33");
+    strictEqual(initial.restSecs, "0:11");
 });
 
 Deno.test("each strategy remembers its own count independently", async () => {
@@ -855,12 +899,12 @@ Deno.test("each strategy remembers its own count independently", async () => {
 });
 
 Deno.test("switching strategy loads that strategy's own stored count, not the last one shown", async () => {
-    const stored = { strategy: "intervals", cycles: 9, amrapMinutes: 17 };
+    const stored = { strategy: "intervals", cycles: 9, amrapWindowSecs: 17 * 60 };
     // seeded, not els.count.value: run() always types its own count (1) into
     // the field afterward, same as a user editing post-switch would. What is
     // under test is what the switch itself loaded, before that edit lands.
-    const { seeded } = await run({ stored, strategy: "amrap", count: 1, stopAt: 0 });
-    strictEqual(seeded.count, "17");
+    const { seeded } = await run({ stored, strategy: "amrap", count: 60, stopAt: 0 });
+    strictEqual(seeded.count, "17:00");
 });
 
 Deno.test("an unknown stored strategy falls back to Intervals", async () => {

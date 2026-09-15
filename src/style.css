@@ -95,7 +95,13 @@ label {
   color: var(--dim);
 }
 
-input[type="number"] {
+/* Named outright rather than selected by type. These are type="text" because
+   "1:30" is not a number, so the old input[type="number"] silently stopped
+   matching -- and the obvious repair, input:not([type="checkbox"]), reaches
+   the strategy radios too. Those are deliberately 1px and hidden, and this
+   rule outranks the one that sizes them, so they inflated into overlapping
+   boxes that swallowed each other's clicks. Three fields, three names. */
+:is(#work-secs, #rest-secs, #count) {
   width: 100%;
   margin-top: var(--space-1);
   padding: var(--space-4);
