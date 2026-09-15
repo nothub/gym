@@ -469,13 +469,65 @@ test("the countdown presses under a finger only where a press does something", a
     // RFT mid-workout is the one place a tap records anything.
     expect(await pressedTransform("rft", false)).toBe(scaled);
     // Everywhere else the countdown is a readout, and the finish glyph is not
-    // a control at all. RFT's own finish is absent from this list because the
-    // digits are gone by then -- the per-round times hold that slot, and the
-    // hidden-ness is asserted in the RFT test rather than pressed at here.
+    // a control at all -- RFT's finish included, where the glyph shares the
+    // screen with the table but is no more pressable for it.
     for (const [strategy, toDone] of [["intervals", false], ["amrap", false],
-                                      ["intervals", true], ["amrap", true]]) {
+                                      ["intervals", true], ["amrap", true], ["rft", true]]) {
         expect(await pressedTransform(strategy, toDone), `${strategy}/${toDone ? "done" : "work"}`).toBe("none");
     }
+});
+
+test("the RFT finish fits its glyph and its whole table on a phone", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/");
+    await strategy(page, "rft");
+    await page.locator("#count").fill("10");
+    await start(page);
+    await page.clock.runFor(10_100);
+    for (let i = 0; i < 10; i++) {
+        await page.clock.fastForward(63_000);
+        await page.locator("#seconds").click();
+        await page.clock.runFor(50);
+    }
+
+    // Ten rows plus a glyph is the case that decides whether the glyph could
+    // stay at --text-huge. It could not, hence .compact -- and the list scrolls
+    // rather than growing, so the controls stay reachable either way.
+    await expect(page.locator("#laps li")).toHaveCount(10);
+    const glyph = await page.locator("#seconds").boundingBox();
+    const label = await page.locator("#round-label").boundingBox();
+    const laps = await page.locator("#laps").boundingBox();
+    // Label, then glyph, then table: the mark sits above what it crowns.
+    expect(glyph.y).toBeGreaterThan(label.y);
+    expect(laps.y).toBeGreaterThan(glyph.y);
+
+    // Nothing runs off the bottom, and the way out is still on screen.
+    const controls = await page.locator("#controls").boundingBox();
+    expect(controls.y + controls.height).toBeLessThanOrEqual(page.viewportSize().height);
+    await expect(page.getByRole("button", { name: "Again" })).toBeVisible();
+});
+
+test("the lap list fades its edge only when there is more below it", async ({ page }) => {
+    const lapsClassAfter = async (rounds) => {
+        await page.clock.install();
+        await page.goto("/");
+        await strategy(page, "rft");
+        await page.locator("#count").fill(String(rounds));
+        await start(page);
+        await page.clock.runFor(10_100);
+        for (let i = 0; i < rounds; i++) {
+            await page.clock.fastForward(63_000);
+            await page.locator("#seconds").click();
+            await page.clock.runFor(50);
+        }
+        return page.locator("#laps").getAttribute("class");
+    };
+
+    // 10 is the largest preset and fits outright, so a fade there would dim the
+    // final row of a list that ends there -- claiming more to scroll to.
+    expect(await lapsClassAfter(10)).toBe("");
+    // Past the cap the last visible row really is cut, and the fade says so.
+    expect(await lapsClassAfter(20)).toBe("clipped");
 });
 
 test("Intervals: the countdown is not a tap target", async ({ page }) => {
@@ -514,8 +566,9 @@ test("RFT: the countdown shows elapsed time and ends on the target round", async
     await page.clock.runFor(50);
 
     await expect(page.locator("#phase")).toHaveText("Done");
-    // The digits give their slot to the per-round times; the total moves up.
-    await expect(page.locator("#seconds")).toBeHidden();
+    // The digits become the finish glyph above the table; the total moves up.
+    await expect(page.locator("#seconds")).toBeVisible();
+    await expect(page.locator("#seconds")).toHaveText("💪");
     await expect(page.locator("#round-label")).toHaveText("2 rounds \u00b7 1:35");
     await expect(page.locator("#laps li")).toHaveCount(2);
     await expect(page.locator("#laps li").nth(0)).toContainText("1:05");

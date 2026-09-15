@@ -719,12 +719,26 @@ Deno.test("RFT counts up and ends on the target tap, not on elapsed time", async
         tapAt: [PREP_MS + 5_008, PREP_MS + 12_016, PREP_MS + 20_016],
     });
     strictEqual(els.phase.textContent, "Done");
-    // The total rides on the label; the digits give their slot to the list.
+    // The total rides on the label, the finish glyph sits above the table.
     strictEqual(els["round-label"].textContent, "3 rounds \u00b7 0:20");
-    strictEqual(els.seconds.hidden, true);
+    strictEqual(els.seconds.textContent, "💪");
+    strictEqual(els.seconds.className, "done compact");
     strictEqual(els.laps.hidden, false);
     // Durations, not the running total: 5s, then 12-5, then 20-12.
     deepStrictEqual(lapRows(), [["1", "0:05"], ["2", "0:07"], ["3", "0:08"]]);
+});
+
+Deno.test("only RFT's finish shows the table, and only it shrinks the glyph", async () => {
+    const rft = await run({ strategy: "rft", count: 1, tapAt: [PREP_MS + 2_000] });
+    strictEqual(rft.els.laps.hidden, false);
+    strictEqual(rft.els.seconds.className, "done compact");
+
+    // The other two have nothing to list, so the glyph keeps the whole screen.
+    for (const strategy of ["intervals", "amrap"]) {
+        const other = await run({ strategy, count: 1 });
+        strictEqual(other.els.laps.hidden, true, strategy);
+        strictEqual(other.els.seconds.className, "done", strategy);
+    }
 });
 
 Deno.test("each RFT tap restarts the round clock without disturbing the total", async () => {

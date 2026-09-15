@@ -327,6 +327,15 @@ input[type="checkbox"] {
 /* RFT's per-round times. Capped in height and scrolled rather than allowed to
    grow: the round count goes to 99, and a list that long would push the phase
    label and the controls off a phone entirely. */
+/* The finish glyph when a table shares the screen with it: still the largest
+   thing above the fold, but no longer the whole of it. --text-huge is sized to
+   be read across a gym from a phone on the floor, which a screen that also has
+   to carry five to ninety-nine rows cannot afford. */
+#seconds.compact {
+  font-size: clamp(3rem, 16vmin, 6rem);
+  line-height: 1;
+}
+
 #laps {
   margin: 0;
   padding: 0;
@@ -335,8 +344,21 @@ input[type="checkbox"] {
      number hard against its time and leaves the gap between them doing
      nothing. A fixed reading width gives space-between something to spend. */
   min-width: 12rem;
-  max-height: 42vh;
+  /* Sized so the three presets -- 3, 5 and 10 rounds -- all fit outright on a
+     normal phone, since scrolling a result you just earned is a poor reward.
+     Past that it scrolls, and the mask fades the last visible row so a row cut
+     in half reads as "more below" rather than as a rendering fault. */
+  max-height: 52vh;
   overflow-y: auto;
+}
+
+/* Only when the rows really do not fit, set from showLaps(). Unconditionally
+   the fade dims the last row of a list that ends there, which claims there is
+   more to scroll to when there is not -- the opposite lie to the one it is
+   meant to prevent. */
+#laps.clipped {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
   font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
   color: var(--txt);

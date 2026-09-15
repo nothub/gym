@@ -467,24 +467,34 @@ function showLaps(laps) {
     el.laps.append(li);
   });
   el.laps.hidden = false;
-  // The digits and the list occupy the same slot; only one is ever the result.
-  el.seconds.hidden = true;
+  // Measured after the rows are in, so it reflects this list rather than the
+  // last one. A fake DOM has neither height, and undefined > undefined is
+  // false, which is the right answer there: nothing to fade.
+  el.laps.className = el.laps.scrollHeight > el.laps.clientHeight ? "clipped" : "";
 }
 
 function render(state, secs, config) {
   if (state.phase === "done") {
+    const rft = config.strategy === "rft";
     el.phase.textContent = "Done";
     el.seconds.textContent = DONE_GLYPH;
-    el.seconds.className = "done";
+    // Shrunk for RFT, where the glyph shares the screen with the table of
+    // round times rather than being the whole of it. Same element either way:
+    // it already sits between the label and the list, which is where the mark
+    // belongs, so nothing new is needed to put it there.
+    el.seconds.className = rft ? "done compact" : "done";
     // What was actually done. Intervals and AMRAP restate what was set, since
     // the clock delivered exactly that; RFT reports its rounds and the total
-    // it is scored on, with the per-round times taking the digits' place.
+    // it is scored on, with the per-round times listed underneath.
     el.roundLabel.textContent = config.strategy === "intervals"
       ? plural(config.intervalCycles, "cycle")
       : config.strategy === "amrap"
       ? plural(config.amrapWindow / 60000, "minute")
       : `${plural(state.round, "round")} \u00b7 ${formatClock(state.total)}`;
-    if (config.strategy === "rft") showLaps(state.laps);
+    // Explicit either way: at done the branch below never runs, so the list
+    // would otherwise keep whatever the last running frame left it at.
+    if (rft) showLaps(state.laps);
+    else el.laps.hidden = true;
   } else {
     el.phase.textContent = state.phase === "prep" ? "Get ready"
       : state.phase === "rest" ? "Rest" : "Work";
@@ -504,7 +514,6 @@ function render(state, secs, config) {
       // the total, which must not leave the screen to make room for a split.
       : `Round ${state.round + 1} \u00b7 ${formatClock(state.total)}`;
     el.laps.hidden = true;
-    el.seconds.hidden = false;
   }
 
   // Live only while there is a round to record. Prep has none yet and done has
