@@ -167,7 +167,11 @@ const STRATEGIES = ["intervals", "amrap", "rft"];
 const INTERVALS_PRESETS = {
   emom: { work: 60, rest: 0, cycles: 10 },
   e2mom: { work: 120, rest: 0, cycles: 6 },
-  // Timing convention only, not the 1996 protocol: see .ai/work/strategies/spec.md.
+  // The timing convention, not the protocol. Tabata 1996 prescribes 7 to 8
+  // sets on a cycle ergometer at ~170% VO2max, and credits the structure to
+  // speed-skating coach Kouichi Irisawa. "20/10 x8" borrows the clock and
+  // nothing else, which is all a timer can offer -- the label must not be read
+  // as claiming the rest. Med Sci Sports Exerc. 1996;28(10):1327-30, PMID 8897392.
   tabata: { work: 20, rest: 10, cycles: 8 },
 };
 // Minutes and rounds respectively -- durations and round counts with no
