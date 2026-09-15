@@ -303,6 +303,39 @@ test("the setup fields are styled by the app, not left to the browser", async ({
     }
 });
 
+test("each field label is indented to where its field's straight edge starts", async ({ page }) => {
+    await page.goto("/");
+
+    // Flush left, the leading emoji has no side bearing and reads as falling
+    // off the form. --radius is 0.75rem: the label starts where the rounded
+    // corner below it ends.
+    const radius = await page.evaluate(() =>
+        parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--radius")) * 16);
+    for (const [labelSel, fieldSel] of [
+        ['label[for="work-secs"]', "#work-secs"],
+        ['label[for="rest-secs"]', "#rest-secs"],
+        ["#count-label", "#count"],
+    ]) {
+        // The label is inline, so padding-left moves its text without moving
+        // its box -- measuring the box would read 0 whatever the padding is.
+        // The ink is the thing that shifted, so measure that.
+        const textX = await page.locator(labelSel).evaluate((el) => {
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            return r.getBoundingClientRect().x;
+        });
+        const field = await page.locator(fieldSel).boundingBox();
+        expect(textX - field.x, labelSel).toBeGreaterThanOrEqual(radius - 1);
+    }
+
+    // The centred rows must not have moved with them.
+    const form = await page.locator("#setup").boundingBox();
+    const cues = page.locator("#cues label");
+    const first = await cues.first().boundingBox();
+    const last = await cues.last().boundingBox();
+    expect(Math.abs((first.x + last.x + last.width) / 2 - (form.x + form.width / 2))).toBeLessThan(2);
+});
+
 test("Intervals shows work and rest without needing a preset first", async ({ page }) => {
     await page.goto("/");
 

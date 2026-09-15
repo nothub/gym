@@ -95,6 +95,15 @@ label {
   color: var(--dim);
 }
 
+/* Indented to --radius, which is where the field below stops being a corner
+   and starts being a straight edge. Flush against the container the glyph has
+   no side bearing at all and reads as falling off the left of the form. Scoped
+   to the three field labels: the cue and strategy labels are centred, and
+   padding on those would shift the rows off centre. */
+:is(label[for="work-secs"], label[for="rest-secs"], #count-label) {
+  padding-left: var(--radius);
+}
+
 /* Named outright rather than selected by type. These are type="text" because
    "1:30" is not a number, so the old input[type="number"] silently stopped
    matching -- and the obvious repair, input:not([type="checkbox"]), reaches
