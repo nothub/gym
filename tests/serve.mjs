@@ -14,6 +14,10 @@ const PORT = Number(process.env.PORT ?? 8080);
 
 const TYPES = {
     ".html": "text/html; charset=utf-8",
+    // Not optional: a stylesheet served as anything but text/css is refused
+    // outright in standards mode, so the octet-stream fallback below renders
+    // the whole app unstyled rather than failing in any way that names itself.
+    ".css": "text/css; charset=utf-8",
     ".js": "application/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".webmanifest": "application/manifest+json; charset=utf-8",

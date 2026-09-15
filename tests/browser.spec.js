@@ -552,6 +552,16 @@ test("serves the app from cache with the network cut", async ({ page, context })
     await expect(page.locator("h1")).toHaveText("Gym Timer");
     await expect(page.locator("#count")).toBeVisible();
 
+    // Styled, not merely present. The markup renders fine without either
+    // stylesheet, so asserting on text alone would pass an offline load that
+    // dropped the CSS -- which looks like the app started and is worse than a
+    // clean failure. #setup takes the whole viewport unstyled and is capped at
+    // 20rem by style.css, so its width is the cheapest proof both loaded.
+    expect((await page.locator("#setup").boundingBox()).width).toBeLessThanOrEqual(320);
+    // The reset is the one the page links first, and it is the only thing
+    // zeroing the UA's default body margin.
+    expect(await page.evaluate(() => getComputedStyle(document.body).marginTop)).toBe("0px");
+
     // version.js is precached for this: without it in ASSETS the footer would
     // fall back to "dev" the moment the network went away.
     await expect(page.locator("#build")).not.toHaveText("dev");

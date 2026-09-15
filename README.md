@@ -22,8 +22,7 @@ prep countdown and the finish.
 
 ## Running it
 
-Plain HTML, CSS and JavaScript in one file. No framework, no bundler, no
-package manager.
+Plain HTML, CSS and JavaScript. No framework, no bundler, no package manager.
 
 ```
 ./scripts/build.sh
@@ -58,6 +57,8 @@ that image, so the app itself keeps no dependencies.
 
 ```
 src/        the site
+  reset.css   Meyer's reset, verbatim and unedited
+  style.css   everything the app styles itself
 dist/       build output, gitignored
 scripts/    build.sh, test.sh
 tests/      both tiers, the fake-DOM harness, and a static server

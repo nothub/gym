@@ -1,0 +1,478 @@
+:root {
+  /* The spin buttons on a number input and an unchecked checkbox's box are
+     drawn by the browser, not by anything here: accent-color reaches the
+     checked state and nothing else, so both were still being painted from
+     the UA's light palette against a near-black page. This picks the dark
+     one instead, which is the only way to reach that chrome without
+     appearance: none and hand-drawing replacements. */
+  color-scheme: dark;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.5rem;
+  --text-huge: clamp(5rem, 42vmin, 20rem);
+
+  /* Palette carried over from kbgen. --dim is as dark as it can go: #7c on
+     #0f0f0f is 4.6:1, and the 14px labels that use it need 4.5:1. kbgen's
+     own #666 is 3.3:1, which is why this is not simply its value. */
+  --bg: #0f0f0f;
+  --srf: #1a1a1a;
+  --brd: #2c2c2c;
+  --txt: #efefef;
+  --dim: #7c7c7c;
+  --acc: #f97316;
+  --ok: #4ade80;
+
+  --radius: 0.75rem;
+
+  /* Every flat grey box (chip, input, button) shares this: a faint top
+     highlight suggesting light catching an edge, plus a soft drop shadow
+     suggesting the surface sits slightly above the background. Neither
+     affects layout -- box-shadow paints outside the box model -- so it does
+     not disturb the pixel geometry the test suite locks in. */
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  /* A flat fill across a very large dark viewport reads as empty rather than
+     calm. Vignette, not a glow: the centre sits at exactly --bg, the value
+     --dim's 4.5:1 text contrast was measured against, and only darkens
+     toward the edges -- a lighter centre reads as "warmer," but it would
+     have put text at less contrast than it was tuned for wherever it landed
+     on the brighter part of the gradient. Darkening can only help contrast,
+     never hurt it, which is what makes this direction the safe one. */
+  background: radial-gradient(ellipse 900px 600px at 50% -10%, var(--bg) 0%, #050505 100%);
+  color: var(--txt);
+  font-family: system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Full width rather than shrink-to-fit, so percentage widths inside it have a
+   definite containing block to resolve against. */
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--space-4);
+}
+
+h1 {
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-lg);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: center;
+}
+
+/* Setup */
+
+#setup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 20rem;
+}
+
+label {
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+
+input[type="number"] {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-4);
+  font-size: var(--text-lg);
+  font-family: inherit;
+  text-align: center;
+  color: var(--txt);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+  box-shadow: var(--lift);
+}
+
+button {
+  padding: var(--space-4);
+  font-size: var(--text-base);
+  font-family: inherit;
+  color: var(--txt);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+  box-shadow: var(--lift);
+  cursor: pointer;
+  transition: transform 100ms ease-out, box-shadow 150ms ease-out;
+}
+
+/* :not(:disabled) is load-bearing, not belt and braces. Chromium matches
+   :active on a disabled button, so without this the countdown presses under a
+   finger in Intervals and AMRAP, where it is a plain readout, and on every
+   finish screen, where the glyph is not a control at all. Press feedback
+   belongs only where a press does something: RFT's work phase. */
+button:not(:disabled):active { transform: scale(0.97); }
+
+/* The one button meant to look like the primary action: an accent-tinted
+   glow standing in for elevation, since --lift's shadow is tuned for --srf
+   and would vanish against the bright fill here. */
+button[type="submit"] {
+  color: var(--bg);
+  background: var(--acc);
+  border-color: var(--acc);
+  font-weight: 600;
+  box-shadow: 0 4px 20px -4px rgba(249, 115, 22, 0.45);
+}
+
+button[type="submit"]:hover { box-shadow: 0 6px 24px -4px rgba(249, 115, 22, 0.55); }
+
+:is(button, input):focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+/* Cue settings */
+
+fieldset {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Scoped to #cues, not a bare "fieldset label": #strategies is a fieldset
+   too, and this flex+gap layout is shaped for a checkbox sitting beside an
+   emoji and a word. It leaked in once already -- text-align: center on
+   #strategies label had no effect while its text was a flex item packed to
+   flex-start here, not text-align's business to move. */
+#cues label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+  color: var(--txt);
+  cursor: pointer;
+}
+
+#cues label:has(input:disabled) {
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--acc);
+  cursor: inherit;
+}
+
+/* Presets. The radio itself is visually hidden but stays in the tab order and
+   inside its label, so a click anywhere on the chip and a screen reader both
+   reach the same control -- no id/for pairing to keep in sync. */
+
+#strategies {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* No display declared: a label is inline by default, but as a direct child
+   of #strategies (display: flex) it is automatically blockified as a flex
+   item regardless -- which is what lets min-width and text-align below take
+   effect at all. Losing that blockification is exactly what happened when a
+   generic "fieldset label { display: flex }" rule, meant for #cues, once
+   matched here too: it turned the label into a flex container of its own,
+   and inside that, text-align has no say over where a flex item sits --
+   only justify-content does, which nothing set, so text packed left. */
+#strategies label {
+  text-align: center;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--dim);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+  box-shadow: var(--lift);
+  cursor: pointer;
+  transition: transform 100ms ease-out, box-shadow 150ms ease-out, border-color 150ms ease-out;
+}
+
+#strategies label:hover { border-color: var(--dim); }
+#strategies label:active { transform: scale(0.97); }
+
+#strategies input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* Same accent glow as the Start button, at roughly a third of the intensity:
+   the active strategy is the next-most-important thing on the setup screen. */
+#strategies label:has(input:checked) {
+  color: var(--bg);
+  background: var(--acc);
+  border-color: var(--acc);
+  box-shadow: 0 3px 14px -3px rgba(249, 115, 22, 0.4);
+}
+
+#strategies label:has(input:focus-visible) {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+/* Presets are momentary actions -- "fill these fields in" -- not a selection
+   that persists: editing a field afterward leaves no preset "current" to
+   show as checked. Plain buttons rather than the radios #strategies uses. */
+.preset-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* One shared size for every preset button, across all three rows: Intervals'
+   are two lines (name + work/rest), AMRAP's and RFT's are one ("10 min"),
+   and without a fixed box the row's own height would change when switching
+   strategy swaps which one is showing. min-width fits "10 rounds", the
+   widest label of the nine; min-height fits Intervals' two-line buttons,
+   the tallest; justify-content centres a one-line button in that height. */
+.preset-row button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 5.5rem;
+  min-height: 3.25rem;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  color: var(--dim);
+  background: var(--srf);
+  border: 1px solid var(--brd);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+/* :active is the generic button rule -- .preset-row button is one. */
+.preset-row button:hover { border-color: var(--dim); }
+
+/* Work/rest in seconds, under the name -- only Intervals' three presets have
+   a canonical pair to show. */
+.preset-detail {
+  font-size: 0.7em;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+#interval-fields {
+  display: flex;
+  gap: var(--space-4);
+  transition: opacity 150ms ease-out;
+}
+
+#interval-fields > div { flex: 1; }
+
+/* AMRAP/RFT: dimmed rather than removed, so the form's height -- and
+   everything main's vertical centring positions relative to it -- does not
+   change when switching strategy. */
+#interval-fields.inactive { opacity: 0.35; }
+
+/* Timer */
+
+#timer {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+#phase {
+  margin: 0;
+  font-size: var(--text-sm);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* A tappable timer readout is unusual enough that the ring alone did not carry
+   it -- this says outright what the ring only implies. */
+#tap-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--dim);
+}
+
+/* visibility, not display: prep and work differ by whether the target is live,
+   and collapsing the line at the transition would jog the controls underneath
+   it a second into the workout. Intervals never has a round to record, so
+   there the element is dropped from the layout entirely rather than reserved. */
+#tap-hint.reserved { visibility: hidden; }
+
+/* #seconds is a <button>: in AMRAP and RFT it is the tap target, chosen
+   because it is the largest thing on screen and the athlete is not aiming
+   carefully. Reset to plain text and re-enable pointer affordance only when
+   JS marks it interactive. */
+/* A faint ambient glow year-round, intensifying with state below -- the
+   digits are the one thing on this screen meant to hold the eye, and flat
+   text reads as unstyled next to the shadowed surfaces around it. */
+#seconds {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  /* #seconds is a <button>, so without this it inherits the generic button
+     rule's --lift shadow -- a grey chip's edge-lift drawn around text that
+     has neither an edge nor a chip. */
+  box-shadow: none;
+  font-family: inherit;
+  font-size: var(--text-huge);
+  font-weight: 200;
+  line-height: 0.9;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  cursor: default;
+  text-shadow: 0 0 80px rgba(239, 239, 239, 0.12);
+}
+
+/* A button with every default reset looks identical to plain text, and a
+   touchscreen has no hover state to hint at it either -- so tappability needs
+   a persistent mark, not just a cursor. box-shadow rather than border: it
+   does not participate in layout, so the centred-digits geometry is unaffected. */
+#seconds:not(:disabled) {
+  cursor: pointer;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius);
+  /* --dim, not --brd: --brd is tuned for a hairline on a small input, and
+     disappears entirely at this size against --bg. */
+  box-shadow: inset 0 0 0 2px var(--dim);
+}
+
+/* :active is the generic button rule -- disabled buttons never receive it. */
+
+#seconds:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 4px;
+}
+
+#seconds.warn {
+  color: var(--acc);
+  text-shadow: 0 0 80px rgba(249, 115, 22, 0.4);
+}
+
+/* The 0.9 line height above is tuned to digits. An emoji glyph is taller than
+   that box, so without a correction here the arm overlaps the line below.
+   The colour only shows if the platform substitutes a monochrome glyph. */
+#seconds.done {
+  color: var(--ok);
+  line-height: 1.25;
+  text-shadow: 0 0 80px rgba(74, 222, 128, 0.35);
+}
+
+#round-label {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+#controls {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+#controls button { min-width: 7rem; }
+
+/* Cues.
+   The flash has to read from across a room, so it takes the whole viewport.
+   Text flips to --bg on --acc (6.8:1) for the duration rather than staying
+   light, which would be 2.4:1 and unreadable. */
+
+@keyframes flash-body { 0%, 60% { background: var(--acc); color: var(--bg); } }
+@keyframes flash-label { 0%, 60% { color: var(--bg); } }
+
+body.flash { animation: flash-body 400ms ease-out; }
+body.flash :is(#phase, #round-label, #seconds, footer a) { animation: flash-label 400ms ease-out; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Starts exactly when the count hits 3, so the 1s loop stays in phase with it. */
+  #seconds.warn { animation: pulse 1s ease-out infinite; }
+
+  /* Frozen rather than cleared: a stopped clock that is still pulsing reads
+     as running. play-state holds it where it was instead of snapping. */
+  body.paused #seconds { animation-play-state: paused; }
+  @keyframes pulse { from { transform: scale(1.06); } to { transform: scale(1); } }
+}
+
+footer {
+  padding: var(--space-4);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+
+footer :is(a, button) {
+  color: var(--dim);
+  text-decoration: none;
+}
+
+footer :is(a, button):hover { color: var(--txt); }
+
+footer :is(a, button):focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+/* Strips the surface, border and padding every other button here wants: this
+   one sits in a line of text and reads as a third footer link, not a control
+   floating in the footer. */
+#install {
+  padding: 0;
+  font-size: inherit;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+
+[hidden] { display: none !important; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+noscript p {
+  max-width: 28rem;
+  text-align: center;
+  color: var(--dim);
+}

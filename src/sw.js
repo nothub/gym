@@ -14,6 +14,11 @@ const CACHE = `emom-${self.BUILD}`;
 const ASSETS = [
   "./",
   "./index.html",
+  // Both stylesheets, in the order the page links them. Missing here, an
+  // offline load would render the markup unstyled rather than fail outright,
+  // which is the worse kind of broken: it looks like the app started.
+  "./reset.css",
+  "./style.css",
   "./manifest.webmanifest",
   // The page loads this too, for the footer. Precached so an offline load
   // still gets a build id rather than falling back to the "dev" placeholder.
