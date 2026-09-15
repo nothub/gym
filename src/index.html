@@ -114,7 +114,7 @@
        hidden because on most engines that offer never comes: see the
        beforeinstallprompt handler. -->
   <span id="install-sep" aria-hidden="true" hidden>·</span>
-  <button id="install" type="button" hidden>Install</button>
+  <button id="install" type="button" hidden>install</button>
 </footer>
 
 <p id="live" class="sr-only" aria-live="polite"></p>
@@ -413,6 +413,22 @@ function deriveAmrap(t, config) {
 // the round in progress, restarting from zero at every tap, and `total` runs
 // from the start and never resets. RFT is scored on the total, so it stays on
 // screen even though the big digits show the round.
+// Whole seconds since work began. Every clock on screen shows one of these, so
+// a round's length is the difference of two of them rather than the floor of
+// their difference. Flooring the difference is what made the two counters tick
+// out of step: the total's second turns over on the whole second, a round's
+// turned over a tap's worth of milliseconds later, and a tap lands wherever a
+// finger lands. Differencing whole seconds also telescopes, so the round times
+// on the finish screen add up to the total they are listed under -- flooring
+// each round separately threw away up to a second per round, and a 3.8 s pair
+// of rounds reported "0:01" twice under a total of "0:03".
+//
+// The cost is that a round can read up to a second long or short against a
+// stopwatch held beside it. That is the sub-second remainder of a tap being
+// attributed to one round rather than split, which no display of whole seconds
+// can avoid; what it must not do is lose it.
+const wholeSecs = (ms) => Math.floor(ms / 1000);
+
 function deriveRft(t, laps, config) {
   const round = laps.length;
   if (round >= config.rftRounds) {
@@ -422,7 +438,13 @@ function deriveRft(t, laps, config) {
     return { phase: "done", round, remaining: 0, total: finish, laps };
   }
   const since = round === 0 ? 0 : laps[round - 1];
-  return { phase: "work", round, remaining: t - since, total: t, laps };
+  return {
+    phase: "work",
+    round,
+    remaining: (wholeSecs(t) - wholeSecs(since)) * 1000,
+    total: t,
+    laps,
+  };
 }
 
 function derive(elapsedMs, laps, config) {
@@ -497,9 +519,9 @@ function showLaps(laps) {
     n.className = "lap-n";
     n.textContent = i + 1;
     const t = document.createElement("span");
-    // The gap to the round before, which is the round's own duration. The
-    // first round runs from the start of work, so its predecessor is zero.
-    t.textContent = formatClock(endedAt - (i === 0 ? 0 : laps[i - 1]));
+    // The gap to the round before, which is the round's own duration, taken
+    // between whole seconds so the column adds up to the total above it.
+    t.textContent = formatDuration(wholeSecs(endedAt) - wholeSecs(i === 0 ? 0 : laps[i - 1]));
     li.append(n, t);
     el.laps.append(li);
   });

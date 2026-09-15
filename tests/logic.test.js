@@ -785,7 +785,7 @@ Deno.test("only RFT's finish shows the table, and the glyph is one size everywhe
 });
 
 Deno.test("each RFT tap restarts the round clock without disturbing the total", async () => {
-    // Mid-round, 3s after a tap that landed 5s in: the digits show this round
+    // Mid-round, after a tap that landed 4.992 s in: the digits show this round
     // alone while the label keeps the total the workout is scored on.
     const { els } = await run({
         strategy: "rft",
@@ -793,8 +793,48 @@ Deno.test("each RFT tap restarts the round clock without disturbing the total", 
         tapAt: [PREP_MS + 4_992], // on a frame boundary, as above
         stopAt: PREP_MS + 8_000,
     });
-    strictEqual(els.seconds.textContent, "0:03");
+    // 0:04, not the 0:03 a stopwatch started at the tap would read: round
+    // lengths are differences of whole seconds, so the 8 ms the tap fell short
+    // of the fifth second go to this round rather than being dropped. See
+    // wholeSecs -- the alternative ticks the two clocks out of step and loses
+    // up to a second per round off the finish screen's column.
+    strictEqual(els.seconds.textContent, "0:04");
     strictEqual(els["round-label"].textContent, "Round 2 \u00b7 0:08");
+});
+
+Deno.test("both clocks turn over on the same second", async () => {
+    // The complaint that started this: the label read 0:12 beside digits
+    // reading 0:09, then they changed a fraction of a second apart. Sampled
+    // either side of a whole second, with a tap deliberately off one.
+    const before = await run({
+        strategy: "rft", count: 3,
+        tapAt: [PREP_MS + 2_496], stopAt: PREP_MS + 6_992,
+    });
+    const after = await run({
+        strategy: "rft", count: 3,
+        tapAt: [PREP_MS + 2_496], stopAt: PREP_MS + 7_008,
+    });
+    // Total crosses 6 -> 7, and the round's clock advances on the same frame.
+    strictEqual(before.els["round-label"].textContent, "Round 2 \u00b7 0:06");
+    strictEqual(before.els.seconds.textContent, "0:04");
+    strictEqual(after.els["round-label"].textContent, "Round 2 \u00b7 0:07");
+    strictEqual(after.els.seconds.textContent, "0:05");
+});
+
+Deno.test("the round times on the finish screen add up to the total above them", async () => {
+    // They did not: three rounds ending on fractions of a second each lost
+    // their remainder to a separate floor, so the column came up short.
+    const { els, lapRows } = await run({
+        strategy: "rft", count: 3,
+        tapAt: [PREP_MS + 1_904, PREP_MS + 3_808, PREP_MS + 5_712],
+    });
+    const toSecs = (mmss) => {
+        const [m, s] = mmss.split(":").map(Number);
+        return m * 60 + s;
+    };
+    const sum = lapRows().reduce((n, [, time]) => n + toSecs(time), 0);
+    const total = toSecs(els["round-label"].textContent.split("\u00b7")[1].trim());
+    strictEqual(sum, total, `laps ${JSON.stringify(lapRows())} under ${els["round-label"].textContent}`);
 });
 
 Deno.test("the 10-round RFT preset fills the target, not a duration", async () => {
