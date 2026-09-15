@@ -182,7 +182,10 @@ fieldset {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-base);
+  /* The same size as the field labels above. Colour still differs: these label
+     controls and those caption inputs, and --txt is what marks the difference
+     once size no longer does. */
+  font-size: var(--text-sm);
   color: var(--txt);
   cursor: pointer;
 }
@@ -193,8 +196,13 @@ fieldset {
 }
 
 input[type="checkbox"] {
-  width: 1.1rem;
-  height: 1.1rem;
+  /* em, not rem, and font: inherit to give the em something to measure: the
+     box then tracks whatever its label is set in rather than needing its own
+     number every time that changes. A control does not inherit font by
+     default, which is what makes the explicit line necessary. */
+  font: inherit;
+  width: 1.1em;
+  height: 1.1em;
   accent-color: var(--acc);
   cursor: inherit;
 }

@@ -70,6 +70,24 @@ test("centres the setup form instead of sizing it to its contents", async ({ pag
     expect(form.width).toBeLessThanOrEqual(320);
 });
 
+test("the cue labels are the size the field labels are", async ({ page }) => {
+    await page.goto("/");
+
+    const size = (sel) => page.locator(sel).evaluate((n) => getComputedStyle(n).fontSize);
+    const field = await size('label[for="work-secs"]');
+    for (const cue of ["#cues label:nth-of-type(1)", "#cues label:nth-of-type(2)"]) {
+        expect(await size(cue), cue).toBe(field);
+    }
+
+    // The box tracks its own label through em, so it cannot be left behind
+    // when that changes: roughly 1.1x the text, not a number of its own.
+    // 1.1em of the label, so ~1.1x its text. Bounded tightly on purpose: a
+    // looser window passed with the box pinned to 1.1rem, which is the very
+    // thing the em is here to prevent.
+    const box = await page.locator("#cue-sound").evaluate((n) => n.getBoundingClientRect().width);
+    expect(box / parseFloat(field)).toBeCloseTo(1.1, 1);
+});
+
 test("centres the cue checkboxes across the form", async ({ page }) => {
     await page.goto("/");
 
