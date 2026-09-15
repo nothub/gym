@@ -103,6 +103,50 @@ test("the strategy row and every preset row centre on the form, like everything 
     }
 });
 
+test("every row spans the form, so the setup screen has one width", async ({ page }) => {
+    await page.goto("/");
+
+    // The chip rows used to shrink to fit their text while the inputs and
+    // Start filled the form, which read as the top of the screen being
+    // narrower than the bottom. Centring tests could not see it: content
+    // centred at two different widths is still centred.
+    const form = await page.locator("#setup").boundingBox();
+    const rowSpan = async (sel) => {
+        const items = page.locator(sel);
+        const first = await items.first().boundingBox();
+        const last = await items.last().boundingBox();
+        return [first.x, last.x + last.width];
+    };
+
+    for (const sel of ["#strategies label", "#intervals-presets button"]) {
+        const [left, right] = await rowSpan(sel);
+        expect(Math.abs(left - form.x), sel).toBeLessThan(2);
+        expect(Math.abs(right - (form.x + form.width)), sel).toBeLessThan(2);
+    }
+});
+
+test("no chip's label wraps to a second line, at any width a phone has", async ({ page }) => {
+    // Equal thirds of a narrow form leave "Intervals" about eight pixels of
+    // slack, and losing it wraps the word. Counting line boxes rather than
+    // comparing chip heights: a flex row stretches its items to match, so when
+    // one chip wraps all three grow together and "every height is equal" stays
+    // true -- that version of this test passed with the wrap plainly visible.
+    for (const width of [320, 360, 412]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto("/");
+        for (const sel of ["#strategies label", ".preset-row:not([hidden]) button"]) {
+            const lines = await page.locator(sel).evaluateAll((els) =>
+                els.map((e) => {
+                    const node = [...e.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+                    const r = document.createRange();
+                    r.selectNodeContents(node);
+                    return r.getClientRects().length;
+                }));
+            expect(Math.max(...lines), `${sel} at ${width}: ${lines}`).toBe(1);
+        }
+    }
+});
+
 test("every strategy chip's label text is centred in its own chip", async ({ page }) => {
     await page.goto("/");
 

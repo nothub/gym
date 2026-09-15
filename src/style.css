@@ -221,9 +221,20 @@ input[type="checkbox"] {
    matched here too: it turned the label into a flex container of its own,
    and inside that, text-align has no say over where a flex item sits --
    only justify-content does, which nothing set, so text packed left. */
+/* An equal share of the row each, so the three chips span the form exactly as
+   the inputs and the Start button below them do. Shrink-to-fit left the top of
+   the screen visibly narrower than the bottom. min-width: 0 is what lets them
+   go below their text's natural width -- a flex item refuses to by default,
+   and without it the row wraps on a narrow phone instead of tightening. */
 #strategies label {
+  flex: 1;
+  min-width: 0;
   text-align: center;
-  padding: var(--space-2);
+  /* Narrow horizontal padding, not --space-2: at an equal third of a 320px
+     form each chip gets ~90px, and "Intervals" plus its emoji needs ~76px of
+     that. Eight pixels a side tipped it over and the word wrapped to a second
+     line, leaving one chip taller than its neighbours. */
+  padding: var(--space-2) var(--space-1);
   font-size: var(--text-sm);
   color: var(--dim);
   background: var(--srf);
@@ -280,7 +291,10 @@ input[type="checkbox"] {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-width: 5.5rem;
+  /* As above: equal shares of the full width rather than sized to their
+     labels, which is what makes every row on the setup screen line up. */
+  flex: 1;
+  min-width: 0;
   min-height: 3.25rem;
   padding: var(--space-2);
   font-size: var(--text-sm);
