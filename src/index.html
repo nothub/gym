@@ -798,10 +798,40 @@ function buildConfig() {
 
 /* ---------- wiring ---------- */
 
+// What is wrong with the setup, as a message per offending field, or nothing
+// when it is fine. Separate from buildConfig, which answers whether a workout
+// can start and has no use for the reason.
+function reportSetupProblem() {
+  const strategy = currentStrategy();
+  const span = (lo, hi) => `${formatDuration(lo)} to ${formatDuration(hi)}`;
+  const checks = [[
+    el.count,
+    validForStrategy(strategy, readCount(strategy)),
+    countIsDuration(strategy)
+      ? `Window is a duration, ${span(1, MAX_WINDOW_SECS)}.`
+      : `${countLabelFor(strategy).replace(/^\S+\s/, "")} is a whole number, 1 to ${MAX_COUNT}.`,
+  ]];
+  if (strategy === "intervals") {
+    checks.push(
+      [el.workSecs, validSeconds(parseDuration(el.workSecs.value), 1), `Work is a duration, ${span(1, MAX_WORK_SECS)}.`],
+      [el.restSecs, validSeconds(parseDuration(el.restSecs.value), 0), `Rest is a duration, ${span(0, MAX_WORK_SECS)}.`],
+    );
+  }
+  for (const [field, ok, message] of checks) field.setCustomValidity(ok ? "" : message);
+  // The browser picks the first invalid field, focuses it and shows why.
+  el.setup.reportValidity();
+}
+
 el.setup.addEventListener("submit", (e) => {
   e.preventDefault();
   const config = buildConfig();
-  if (!config) return;
+  // Returning quietly here left Start looking broken: nothing moved and
+  // nothing said why. The fields are text now, so the browser has no min, max
+  // or step of its own to complain about.
+  if (!config) {
+    reportSetupProblem();
+    return;
+  }
   // Unlock audio on the gesture the autoplay policy wants. The first beep is
   // up to 10 s away, by which point there is no gesture left to hang it on.
   if (wantSound()) initAudio();
@@ -853,6 +883,12 @@ el.count.addEventListener("input", () => {
 });
 el.workSecs.addEventListener("input", persistSetup);
 el.restSecs.addEventListener("input", persistSetup);
+
+// Drop a stale complaint as soon as the field is touched; the next submit
+// works out afresh whether it is still true.
+for (const field of [el.workSecs, el.restSecs, el.count]) {
+  field.addEventListener("input", () => field.setCustomValidity(""));
+}
 
 // On change rather than input: rewriting "9" to "0:09" while the 0 of "90" is
 // still being typed would fight the caret. Leaving the field is when a part-

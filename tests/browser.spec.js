@@ -835,6 +835,31 @@ test("completes a workout when the browser refuses to make an AudioContext", asy
     expect(errors).toEqual([]);
 });
 
+test("a refused start explains itself in the browser's own validation UI", async ({ page }) => {
+    await page.goto("/");
+    await page.locator("#work-secs").fill("abc");
+    await start(page);
+
+    // Still on setup, and the browser is now holding a reason for it. The
+    // fake DOM can prove the message is set; only a real engine proves the
+    // form actually refuses to submit and focuses the offending field.
+    await expect(page.locator("#setup")).toBeVisible();
+    await expect(page.locator("#timer")).toBeHidden();
+    const state = await page.evaluate(() => ({
+        message: document.getElementById("work-secs").validationMessage,
+        valid: document.getElementById("work-secs").checkValidity(),
+        focused: document.activeElement?.id,
+    }));
+    expect(state.message).toMatch(/^Work is a duration/);
+    expect(state.valid).toBe(false);
+    expect(state.focused).toBe("work-secs");
+
+    // Fixing it clears the complaint and lets the workout start.
+    await page.locator("#work-secs").fill("0:30");
+    await start(page);
+    await expect(page.locator("#timer")).toBeVisible();
+});
+
 test("starting the timer does not throw", async ({ page }) => {
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));

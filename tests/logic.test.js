@@ -105,7 +105,17 @@ async function run({
         fire(type, ev = { preventDefault() {} }) {
             (this._handlers[type] || []).forEach((fn) => fn(ev));
         },
+        reportValidity() {
+            return !this.validationMessage;
+        },
         focus() {},
+        // Constraint-validation surface the app uses to explain a refused
+        // submit. Recorded rather than acted on: what matters is which field
+        // was blamed and why.
+        validationMessage: "",
+        setCustomValidity(msg) {
+            this.validationMessage = msg;
+        },
         setAttribute(name, v) {
             this._attrs[name] = v;
         },
@@ -644,6 +654,33 @@ Deno.test("a typed duration is the one the clock actually runs", async () => {
         doneAt >= PREP_MS + 90_000 && doneAt < PREP_MS + 90_000 + STEP,
         `finished at ${doneAt}, expected ${PREP_MS + 90_000}`,
     );
+});
+
+Deno.test("a refused start says which field is wrong and why", async () => {
+    // Start used to do nothing at all here. The fields are text, so the
+    // browser has no min/max/step of its own to complain about, and a silent
+    // return is indistinguishable from a broken button.
+    const bad = await run({ workSecsText: "abc", count: 1, stopAt: 0 });
+    ok(bad.els["work-secs"].validationMessage.startsWith("Work is a duration"),
+        bad.els["work-secs"].validationMessage);
+
+    // Well-formed but out of range counts too: 99:00 is past the 10:00 cap.
+    const long = await run({ workSecsText: "99:00", count: 1, stopAt: 0 });
+    ok(long.els["work-secs"].validationMessage.startsWith("Work is a duration"),
+        long.els["work-secs"].validationMessage);
+
+    // The count field is blamed on its own terms, per strategy.
+    const cycles = await run({ count: 0, stopAt: 0 });
+    ok(cycles.els.count.validationMessage.startsWith("Cycles is a whole number"),
+        cycles.els.count.validationMessage);
+    const window_ = await run({ strategy: "amrap", count: 0, stopAt: 0 });
+    ok(window_.els.count.validationMessage.startsWith("Window is a duration"),
+        window_.els.count.validationMessage);
+
+    // And a workout that can start is never blamed for anything.
+    const good = await run({ count: 1, stopAt: 0 });
+    strictEqual(good.els["work-secs"].validationMessage, "");
+    strictEqual(good.els.count.validationMessage, "");
 });
 
 Deno.test("a duration that cannot be read leaves the field alone and refuses to start", async () => {
