@@ -72,7 +72,25 @@ async function run({
         _cls: "",
         _value: "",
         _attrs: {},
-        textContent: "",
+        _text: "",
+        // Enough of a child model for the RFT lap list, which render() builds
+        // with createElement/append. Setting textContent drops the children,
+        // as it does in a real DOM -- that is what makes the rebuild on every
+        // frame idempotent rather than append-forever.
+        children: [],
+        get textContent() {
+            return this._text;
+        },
+        set textContent(v) {
+            // Coerced, as the real property is: assigning a number and reading
+            // back a number is a divergence the app would never see in a
+            // browser, and one the tests would then encode as correct.
+            this._text = String(v);
+            this.children.length = 0;
+        },
+        append(...nodes) {
+            this.children.push(...nodes);
+        },
         hidden: false,
         disabled: false,
         max: "",
@@ -135,7 +153,7 @@ async function run({
             "timer", "phase", "seconds", "round-label",
             "pause", "reset", "live", "strategies",
             "intervals-presets", "amrap-presets", "rft-presets",
-            "cues", "cue-sound", "cue-buzz", "build", "install", "install-sep", "tap-hint",
+            "cues", "cue-sound", "cue-buzz", "build", "install", "install-sep", "tap-hint", "laps",
         ]
     ) {
         els[id] = makeNumberEl(id);
@@ -205,6 +223,7 @@ async function run({
             (docHandlers[type] || []).forEach((fn) => fn());
         },
         getElementById: (id) => els[id],
+        createElement: (tag) => makeEl(tag),
         querySelector(sel) {
             const m = sel.match(/input\[name="strategy"\]\[value="([^"]+)"\]/);
             if (m) return strategyRadios.find((r) => r.value === m[1]) ?? null;
@@ -418,11 +437,13 @@ async function run({
     };
 
     const bodyHasClass = (c) => bodyClasses.has(c);
+    // [["1", "1:52"], ...] -- the rendered lap rows, number beside time.
+    const lapRows = () => els.laps.children.map((li) => li.children.map((c) => c.textContent));
     const tap = () => els.seconds.fire("click");
 
     return {
         els, initial, seeded, beeps, buzzes, flashes, store, wakeLog, doneAt,
-        setVisibility, browserDropsLock, bodyHasClass, tap,
+        setVisibility, browserDropsLock, bodyHasClass, tap, lapRows,
     };
 }
 
@@ -688,16 +709,34 @@ Deno.test("AMRAP shows no progress label while it runs, having nothing to count"
 /* ---------- RFT ---------- */
 
 Deno.test("RFT counts up and ends on the target tap, not on elapsed time", async () => {
+    const { els, lapRows } = await run({
+        strategy: "rft",
+        count: 3,
+        // Offsets land on 16 ms frame boundaries so the durations below are
+        // exact: a tap scheduled between frames is taken on the next one, and
+        // formatClock floors, which turns a 6,992 ms round into "0:06".
+        tapAt: [PREP_MS + 5_008, PREP_MS + 12_016, PREP_MS + 20_016],
+    });
+    strictEqual(els.phase.textContent, "Done");
+    // The total rides on the label; the digits give their slot to the list.
+    strictEqual(els["round-label"].textContent, "3 rounds \u00b7 0:20");
+    strictEqual(els.seconds.hidden, true);
+    strictEqual(els.laps.hidden, false);
+    // Durations, not the running total: 5s, then 12-5, then 20-12.
+    deepStrictEqual(lapRows(), [["1", "0:05"], ["2", "0:07"], ["3", "0:08"]]);
+});
+
+Deno.test("each RFT tap restarts the round clock without disturbing the total", async () => {
+    // Mid-round, 3s after a tap that landed 5s in: the digits show this round
+    // alone while the label keeps the total the workout is scored on.
     const { els } = await run({
         strategy: "rft",
         count: 3,
-        tapAt: [10_000 + 5_000, 10_000 + 12_000, 10_000 + 20_000],
+        tapAt: [PREP_MS + 4_992], // on a frame boundary, as above
+        stopAt: PREP_MS + 8_000,
     });
-    // Flag on the phase label, digits stay bare: elapsed time is RFT's actual
-    // score, and --text-huge has no room for a glyph beside it.
-    strictEqual(els.phase.textContent, "Done");
-    strictEqual(els.seconds.textContent, "0:20");
-    strictEqual(els["round-label"].textContent, "3 rounds");
+    strictEqual(els.seconds.textContent, "0:03");
+    strictEqual(els["round-label"].textContent, "Round 2 \u00b7 0:08");
 });
 
 Deno.test("the 10-round RFT preset fills the target, not a duration", async () => {
@@ -722,7 +761,7 @@ Deno.test("a tap while paused does not count", async () => {
     tap();
     tap();
     els.pause.fire("click");
-    strictEqual(els["round-label"].textContent, "Round 0");
+    ok(els["round-label"].textContent.startsWith("Round 1 "), els["round-label"].textContent);
 });
 
 Deno.test("a tap during prep does not bank a round", async () => {
@@ -730,7 +769,7 @@ Deno.test("a tap during prep does not bank a round", async () => {
     // an eager finger there used to bank a round that appeared the instant the
     // work phase opened.
     const { els } = await run({ strategy: "rft", count: 3, tapAt: [5_000], stopAt: PREP_MS + 2_000 });
-    strictEqual(els["round-label"].textContent, "Round 0");
+    strictEqual(els["round-label"].textContent, "Round 1 \u00b7 0:02");
 });
 
 Deno.test("the tap target is live only while a round can be recorded", async () => {
@@ -777,7 +816,7 @@ Deno.test("RFT does not finish just because time passed", async () => {
         stopAt: 10_000 + 120_000,
     });
     strictEqual(els.phase.textContent, "Work");
-    strictEqual(els["round-label"].textContent, "Round 1");
+    ok(els["round-label"].textContent.startsWith("Round 2 "), els["round-label"].textContent);
 });
 
 /* ---------- Persistence ---------- */

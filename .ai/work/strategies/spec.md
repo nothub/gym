@@ -62,8 +62,16 @@ strategy where a tap decides anything.
 
 ### RFT
 
-Count-up stopwatch. Tap to record a completed round. Ends on the `rftRounds`th tap.
-Reports elapsed time.
+A lap timer. Each tap closes the round in progress and opens the next, so two
+clocks run at once: the round's own, restarting from zero at every tap, and the
+total, which never restarts. The digits show the round, the label carries the
+total, because the total is the score and must not leave the screen.
+
+Ends on the `rftRounds`th tap. Reports the total and every round's time.
+
+What is stored is the total at each tap, not each round's duration: durations
+are the gaps between consecutive entries, and keeping the durations instead
+would mean reconstructing the total by addition, which can drift.
 
 ## The clock
 

@@ -469,9 +469,11 @@ test("the countdown presses under a finger only where a press does something", a
     // RFT mid-workout is the one place a tap records anything.
     expect(await pressedTransform("rft", false)).toBe(scaled);
     // Everywhere else the countdown is a readout, and the finish glyph is not
-    // a control at all.
+    // a control at all. RFT's own finish is absent from this list because the
+    // digits are gone by then -- the per-round times hold that slot, and the
+    // hidden-ness is asserted in the RFT test rather than pressed at here.
     for (const [strategy, toDone] of [["intervals", false], ["amrap", false],
-                                      ["intervals", true], ["amrap", true], ["rft", true]]) {
+                                      ["intervals", true], ["amrap", true]]) {
         expect(await pressedTransform(strategy, toDone), `${strategy}/${toDone ? "done" : "work"}`).toBe("none");
     }
 });
@@ -494,18 +496,30 @@ test("RFT: the countdown shows elapsed time and ends on the target round", async
     // fastForward, not runFor: nothing mid-flight is asserted here, so paying
     // for ~4000 intermediate animation frames buys nothing but 19 real seconds.
     await page.clock.fastForward(65_000);
+    // Round one is still open, so the digits and the total agree so far.
     await expect(page.locator("#seconds")).toHaveText("1:05");
+    await expect(page.locator("#round-label")).toHaveText("Round 1 \u00b7 1:05");
     await expect(page.locator("#phase")).toHaveText("Work");
 
     await page.locator("#seconds").click();
-    await page.locator("#seconds").click();
     // Same as above: the tap itself is silent, the render waits for a frame.
     await page.clock.runFor(50);
-    // Flag on the phase label, digits stay bare: elapsed time is RFT's actual
-    // result, and --text-huge has no room for a glyph beside it.
+    // The tap closed round one and started round two from zero, while the
+    // total kept running -- this is the split the two numbers exist for.
+    await expect(page.locator("#seconds")).toHaveText("0:00");
+    await expect(page.locator("#round-label")).toHaveText("Round 2 \u00b7 1:05");
+
+    await page.clock.fastForward(30_000);
+    await page.locator("#seconds").click();
+    await page.clock.runFor(50);
+
     await expect(page.locator("#phase")).toHaveText("Done");
-    await expect(page.locator("#seconds")).toHaveText("1:05");
-    await expect(page.locator("#round-label")).toHaveText("2 rounds");
+    // The digits give their slot to the per-round times; the total moves up.
+    await expect(page.locator("#seconds")).toBeHidden();
+    await expect(page.locator("#round-label")).toHaveText("2 rounds \u00b7 1:35");
+    await expect(page.locator("#laps li")).toHaveCount(2);
+    await expect(page.locator("#laps li").nth(0)).toContainText("1:05");
+    await expect(page.locator("#laps li").nth(1)).toContainText("0:30");
 });
 
 test("ships a manifest Chrome will accept for install", async ({ page, request }) => {

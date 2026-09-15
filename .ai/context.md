@@ -16,6 +16,12 @@ repeats. A cycle with zero rest is a single uninterrupted work period, which is
 what makes EMOM `Intervals(60s work, 0s rest)`.
 _Avoid_: round, interval, rep, set
 
+**Lap**:
+One completed Round's own duration, the gap between consecutive taps. What RFT
+lists on its finish screen. Distinct from the total, which runs from the start
+and never restarts.
+_Avoid_: split, segment, interval
+
 **Round**:
 One pass through the athlete's own work, recorded by a tap. RFT alone has them:
 its round count is the finish condition, so a tap is the only thing that can end

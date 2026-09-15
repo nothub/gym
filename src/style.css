@@ -324,6 +324,42 @@ input[type="checkbox"] {
 
 /* A tappable timer readout is unusual enough that the ring alone did not carry
    it -- this says outright what the ring only implies. */
+/* RFT's per-round times. Capped in height and scrolled rather than allowed to
+   grow: the round count goes to 99, and a list that long would push the phase
+   label and the controls off a phone entirely. */
+#laps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Shrink-to-fit inside the centred column otherwise, which pulls the round
+     number hard against its time and leaves the gap between them doing
+     nothing. A fixed reading width gives space-between something to spend. */
+  min-width: 12rem;
+  max-height: 42vh;
+  overflow-y: auto;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--txt);
+}
+
+#laps li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+}
+
+/* Zebra rather than rules: at a glance the eye is pairing a round number with
+   a time across a gap, and a tint holds that pairing better than a line. */
+#laps li:nth-child(odd) { background: var(--srf); }
+
+#laps .lap-n {
+  color: var(--dim);
+  font-size: var(--text-base);
+}
+
 #tap-hint {
   margin: 0;
   font-size: var(--text-sm);

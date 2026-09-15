@@ -9,9 +9,11 @@ A conditioning timer. Three strategies, one row of chips on the setup screen:
 - **AMRAP** -- a fixed countdown, and nothing else. How many rounds you got is
   yours to remember; the app has no way to know what a round was, so counting
   them is a job for your head, not a button.
-- **RFT** -- a stopwatch, counting up. Tap the big number to record a round; it
-  ends on the target and reports the time. The only place a tap decides
-  anything, because the round count is what ends it.
+- **RFT** -- a lap timer. Tap the big number to close a round: its time goes
+  into the list and the digits restart from zero for the next one, while the
+  total runs on in the label above, since the total is what RFT is scored on.
+  It ends on the target round and reports every split. The only place a tap
+  decides anything, because the round count is what ends it.
 
 Live at <https://nothub.github.io/gym-timer/>.
 

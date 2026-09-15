@@ -84,6 +84,10 @@
   <section id="timer" hidden>
     <p id="round-label">&nbsp;</p>
     <button type="button" id="seconds" role="timer" disabled>10</button>
+    <!-- RFT's finish only. It takes the digits' place rather than sitting
+         under them: the per-round times are the result there, and the total
+         has already moved up to the label above. -->
+    <ol id="laps" hidden></ol>
     <p id="phase">Get ready</p>
     <p id="tap-hint" class="reserved">tap to count</p>
     <div id="controls">
@@ -147,6 +151,7 @@ const el = {
   cueBuzz: document.getElementById("cue-buzz"),
   build: document.getElementById("build"),
   tapHint: document.getElementById("tap-hint"),
+  laps: document.getElementById("laps"),
   install: document.getElementById("install"),
   installSep: document.getElementById("install-sep"),
 };
@@ -330,8 +335,9 @@ document.addEventListener("visibilitychange", () => {
 // testable without a browser.
 //
 // Intervals derives everything, including the round, from elapsed time alone.
-// AMRAP and RFT are athlete-paced: taps are state held outside derive() and
-// passed in, so "round" for those two is never a function of t.
+// RFT is athlete-paced: the times its taps landed at are state held outside
+// derive() and passed in, so its round is never a function of t. AMRAP counts
+// nothing and ignores them entirely.
 
 function deriveIntervals(t, config) {
   const { work, rest, intervalCycles } = config;
@@ -359,21 +365,32 @@ function deriveAmrap(t, config) {
   return { phase: "work", remaining: config.amrapWindow - t };
 }
 
-function deriveRft(t, taps, config) {
-  // Done is a tap-count threshold, not a time one: t only ever counts up.
-  if (taps >= config.rftRounds) {
-    return { phase: "done", round: taps, remaining: t };
+// laps holds the elapsed time each completed round ended at, so its length is
+// the round count and its last entry is where the round in progress began.
+//
+// Two clocks come out of that, and they are not the same number: `remaining` is
+// the round in progress, restarting from zero at every tap, and `total` runs
+// from the start and never resets. RFT is scored on the total, so it stays on
+// screen even though the big digits show the round.
+function deriveRft(t, laps, config) {
+  const round = laps.length;
+  if (round >= config.rftRounds) {
+    // The final tap is the finish, so the result is when it landed -- not
+    // wherever the frame loop happened to notice, some milliseconds later.
+    const finish = laps[round - 1];
+    return { phase: "done", round, remaining: 0, total: finish, laps };
   }
-  return { phase: "work", round: taps, remaining: t };
+  const since = round === 0 ? 0 : laps[round - 1];
+  return { phase: "work", round, remaining: t - since, total: t, laps };
 }
 
-function derive(elapsedMs, taps, config) {
+function derive(elapsedMs, laps, config) {
   if (elapsedMs < PREP_MS) {
     return { phase: "prep", round: 0, remaining: PREP_MS - elapsedMs };
   }
   const t = elapsedMs - PREP_MS;
   if (config.strategy === "amrap") return deriveAmrap(t, config);
-  if (config.strategy === "rft") return deriveRft(t, taps, config);
+  if (config.strategy === "rft") return deriveRft(t, laps, config);
   return deriveIntervals(t, config);
 }
 
@@ -399,7 +416,9 @@ function formatClock(ms) {
 
 const clock = {
   config: null,
-  taps: 0,
+  // Elapsed time at each completed round's tap, work-relative. Length is the
+  // round count; RFT is the only strategy that fills it.
+  laps: [],
   startedAt: 0,
   pausedAt: 0,
   pausedTotal: 0,
@@ -431,19 +450,41 @@ function doneGlyph(config) {
   return config.strategy === "amrap" ? "⚡" : "💪";
 }
 
+// Rebuilt rather than appended to: render() runs every frame and must be safe
+// to call repeatedly with the same state, which an append is not.
+function showLaps(laps) {
+  el.laps.textContent = "";
+  laps.forEach((endedAt, i) => {
+    const li = document.createElement("li");
+    const n = document.createElement("span");
+    n.className = "lap-n";
+    n.textContent = i + 1;
+    const t = document.createElement("span");
+    // The gap to the round before, which is the round's own duration. The
+    // first round runs from the start of work, so its predecessor is zero.
+    t.textContent = formatClock(endedAt - (i === 0 ? 0 : laps[i - 1]));
+    li.append(n, t);
+    el.laps.append(li);
+  });
+  el.laps.hidden = false;
+  // The digits and the list occupy the same slot; only one is ever the result.
+  el.seconds.hidden = true;
+}
+
 function render(state, secs, config) {
   if (state.phase === "done") {
     el.phase.textContent = "Done";
-    el.seconds.textContent = config.strategy === "rft" ? formatClock(state.remaining) : doneGlyph(config);
+    el.seconds.textContent = doneGlyph(config);
     el.seconds.className = "done";
     // What was actually done. Intervals and AMRAP restate what was set, since
-    // the clock delivered exactly that; RFT reports the rounds it was told to
-    // stop at, which is the same number by the time it is done.
+    // the clock delivered exactly that; RFT reports its rounds and the total
+    // it is scored on, with the per-round times taking the digits' place.
     el.roundLabel.textContent = config.strategy === "intervals"
       ? plural(config.intervalCycles, "cycle")
       : config.strategy === "amrap"
       ? plural(config.amrapWindow / 60000, "minute")
-      : plural(state.round, "round");
+      : `${plural(state.round, "round")} \u00b7 ${formatClock(state.total)}`;
+    if (config.strategy === "rft") showLaps(state.laps);
   } else {
     el.phase.textContent = state.phase === "prep" ? "Get ready"
       : state.phase === "rest" ? "Rest" : "Work";
@@ -457,7 +498,13 @@ function render(state, secs, config) {
     // display -- so it keeps prep's blank line rather than collapsing it.
     el.roundLabel.textContent = state.phase === "prep" || config.strategy === "amrap" ? "\u00a0"
       : config.strategy === "intervals" ? `Cycle ${state.round} / ${config.intervalCycles}`
-      : `Round ${state.round}`;
+      // state.round counts rounds *finished*, and the one on screen is the one
+      // being worked, so it is the next one up. The total rides alongside it:
+      // the digits below show only the current round now, and RFT is scored on
+      // the total, which must not leave the screen to make room for a split.
+      : `Round ${state.round + 1} \u00b7 ${formatClock(state.total)}`;
+    el.laps.hidden = true;
+    el.seconds.hidden = false;
   }
 
   // Live only while there is a round to record. Prep has none yet and done has
@@ -502,7 +549,7 @@ function cue(state, secs, config) {
 }
 
 function tick() {
-  const state = derive(elapsed(), clock.taps, clock.config);
+  const state = derive(elapsed(), clock.laps, clock.config);
   const secs = Math.ceil(state.remaining / 1000);
 
   render(state, secs, clock.config);
@@ -529,7 +576,7 @@ function stopLoop() {
 
 function start(config) {
   clock.config = config;
-  clock.taps = 0;
+  clock.laps = [];
   clock.startedAt = performance.now();
   clock.pausedAt = 0;
   clock.pausedTotal = 0;
@@ -573,8 +620,13 @@ function recordTap() {
   // clicks before they arrive. Stated here anyway: "a round exists to record"
   // is the rule, and leaving it implicit in a DOM attribute puts the rule
   // somewhere the logic cannot be read off.
-  if (derive(elapsed(), clock.taps, clock.config).phase !== "work") return;
-  clock.taps += 1;
+  const state = derive(elapsed(), clock.laps, clock.config);
+  if (state.phase !== "work") return;
+  // The tap closes this round and opens the next, so what is recorded is the
+  // total at the tap, not the round's duration -- durations fall out of the
+  // gaps between entries, and storing them instead would round-trip through
+  // an addition that can drift.
+  clock.laps.push(elapsed() - PREP_MS);
 }
 
 function togglePause() {
