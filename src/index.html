@@ -547,7 +547,10 @@ function render(state, secs, config) {
     el.roundLabel.textContent = config.strategy === "intervals"
       ? plural(config.intervalCycles, "cycle")
       : config.strategy === "amrap"
-      ? plural(config.amrapWindow / 60000, "minute")
+      // The window as MM:SS, like every other duration. It was minutes here
+      // and stayed minutes when the field became seconds, so a 20-second
+      // window reported "0.3333333333333333 minutes".
+      ? formatDuration(wholeSecs(config.amrapWindow))
       : `${plural(state.round, "round")} \u00b7 ${formatClock(state.total)}`;
     // Explicit either way: at done the branch below never runs, so the list
     // would otherwise keep whatever the last running frame left it at.

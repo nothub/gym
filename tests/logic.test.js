@@ -674,13 +674,23 @@ Deno.test("the count field is relabelled per strategy", async () => {
 /* ---------- AMRAP ---------- */
 
 Deno.test("AMRAP counts down a fixed window and reports the window", async () => {
-    const { els } = await run({ strategy: "amrap", count: 60 });
+    // Deliberately not a whole number of minutes. This label used to divide by
+    // 60000 and print minutes, which a 60-second window hid perfectly -- 1
+    // minute is what both the right answer and the wrong one produce.
+    const { els } = await run({ strategy: "amrap", count: 20 });
     strictEqual(els.phase.textContent, "Done");
     // The window, not a round count: AMRAP scores nothing, so it restates what
     // the clock delivered, the way Intervals restates its cycles.
-    strictEqual(els["round-label"].textContent, "1 minute");
+    strictEqual(els["round-label"].textContent, "0:20");
     // Same finish glyph as Intervals: neither has a number to show here.
     strictEqual(els.seconds.textContent, "💪");
+});
+
+Deno.test("the AMRAP window reads MM:SS whatever it was set to", async () => {
+    for (const [secs, shown] of [[20, "0:20"], [60, "1:00"], [90, "1:30"], [12 * 60, "12:00"]]) {
+        const { els } = await run({ strategy: "amrap", count: secs });
+        strictEqual(els["round-label"].textContent, shown, `${secs}s window`);
+    }
 });
 
 Deno.test("AMRAP never makes the countdown tappable, in any phase", async () => {

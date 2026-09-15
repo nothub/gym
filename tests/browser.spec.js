@@ -431,7 +431,7 @@ test("AMRAP: the countdown is never a tap target, and reports its window", async
 
     await page.clock.fastForward(60_000);
     await expect(page.locator("#phase")).toHaveText("Done");
-    await expect(page.locator("#round-label")).toHaveText("1 minute");
+    await expect(page.locator("#round-label")).toHaveText("1:00");
 });
 
 test("the tap hint appears with the target, and costs no layout shift doing it", async ({ page }) => {
