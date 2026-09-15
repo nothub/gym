@@ -637,7 +637,8 @@ Deno.test("AMRAP counts down a fixed window and reports the window", async () =>
     // The window, not a round count: AMRAP scores nothing, so it restates what
     // the clock delivered, the way Intervals restates its cycles.
     strictEqual(els["round-label"].textContent, "1 minute");
-    strictEqual(els.seconds.textContent, "⚡");
+    // Same finish glyph as Intervals: neither has a number to show here.
+    strictEqual(els.seconds.textContent, "💪");
 });
 
 Deno.test("AMRAP never makes the countdown tappable, in any phase", async () => {

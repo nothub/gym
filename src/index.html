@@ -440,19 +440,15 @@ let lastSecond = null;
 let lastRound = null;
 let lastPhase = null;
 
-// A glyph for Intervals and AMRAP's finish, since neither has a result to put
-// in the huge digit slot -- the round count already lives in round-label. RFT
-// does have a result there, its elapsed time, so it keeps its digits: those
-// are sized for a bare glyph or bare numbers, and "🏁 4:32" at --text-huge
-// runs off the viewport.
+// Fills the huge digit slot on a finish that has no number to put there.
+// Intervals and AMRAP both restate what they were set to in the label above
+// and have nothing further to report; RFT never uses this, because its
+// per-round times are a real result and take the slot instead.
 //
-// RFT's flag used to move to the phase label to compensate, which made that
-// label a second glyph slot that only one strategy ever filled. The label
-// reads "Done" in all three now; the huge slot is the one that varies, and
-// it varies because the strategies genuinely have different results.
-function doneGlyph(config) {
-  return config.strategy === "amrap" ? "⚡" : "💪";
-}
+// One glyph rather than one per strategy: a different mark for each said
+// nothing the label above it had not already said, and finishing is the same
+// thing whichever clock got you there.
+const DONE_GLYPH = "💪";
 
 // Rebuilt rather than appended to: render() runs every frame and must be safe
 // to call repeatedly with the same state, which an append is not.
@@ -478,7 +474,7 @@ function showLaps(laps) {
 function render(state, secs, config) {
   if (state.phase === "done") {
     el.phase.textContent = "Done";
-    el.seconds.textContent = doneGlyph(config);
+    el.seconds.textContent = DONE_GLYPH;
     el.seconds.className = "done";
     // What was actually done. Intervals and AMRAP restate what was set, since
     // the clock delivered exactly that; RFT reports its rounds and the total
